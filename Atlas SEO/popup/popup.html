@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atlas SEO</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="logo-wrap">
+      <img src="../icons/icon-128.png" alt="Atlas SEO logo" class="app-logo" />
+    </div>
+    <div>
+      <h1>Atlas SEO</h1>
+      <p class="subtitle">No-API audit + SERP helper</p>
+    </div>
+    <button id="refresh" class="primary">Refresh Audit</button>
+  </header>
+
+  <section class="toolbar">
+    <div class="control-group">
+      <button id="exportAuditCsv" class="ghost">Export Audit CSV</button>
+      <a href="https://buymeacoffee.com/aquibisrark" target="_blank" rel="noopener" class="ghost donate-link">Buy me a coffee</a>
+    </div>
+  </section>
+
+  <div id="status" class="status">Ready.</div>
+
+  <div class="shell">
+    <aside class="nav">
+      <div class="nav-title">Sections</div>
+      <div class="nav-search">
+        <input id="navSearch" type="search" placeholder="Search tools..." />
+      </div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="overview" title="Overview">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </span>
+          Overview
+        </button>
+        <button class="tab" data-tab="plan" title="Fix Plan">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="3" />
+              <path d="M8 12l3 3 5-6" />
+            </svg>
+          </span>
+          Fix Plan
+        </button>
+        <button class="tab" data-tab="onpage" title="On-Page">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+              <path d="M14 3v5h5" />
+              <path d="M9 13h6M9 17h6" />
+            </svg>
+          </span>
+          On-Page
+        </button>
+        <button class="tab" data-tab="links" title="Links">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1" />
+              <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1" />
+            </svg>
+          </span>
+          Links
+        </button>
+        <button class="tab" data-tab="media" title="Media">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="M7 14l3-3 4 4 3-2 3 3" />
+              <circle cx="8" cy="9" r="1.5" />
+            </svg>
+          </span>
+          Media
+        </button>
+        <button class="tab" data-tab="schema" title="Schema">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l-4-6 4-6" />
+              <path d="M15 6l4 6-4 6" />
+            </svg>
+          </span>
+          Schema
+        </button>
+        <button class="tab" data-tab="tech" title="Tech">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="7" y="7" width="10" height="10" rx="2" />
+              <path d="M3 10h4M3 14h4M17 10h4M17 14h4M10 3v4M14 3v4M10 17v4M14 17v4" />
+            </svg>
+          </span>
+          Tech
+        </button>
+        <button class="tab" data-tab="serp" title="SERP">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="6" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+          </span>
+          SERP
+        </button>
+        <button class="tab" data-tab="regex" title="Regex">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 4c-2 0-3 1.5-3 3v2c0 1-1 2-2 2 1 0 2 1 2 2v2c0 1.5 1 3 3 3" />
+              <path d="M16 4c2 0 3 1.5 3 3v2c0 1 1 2 2 2-1 0-2 1-2 2v2c0 1.5-1 3-3 3" />
+            </svg>
+          </span>
+          Regex
+        </button>
+        <button class="tab" data-tab="ai" title="AI Visibility">
+          <span class="tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4L12 3z" />
+              <path d="M5 19l1 2 2-1" />
+              <path d="M19 19l-1 2-2-1" />
+            </svg>
+          </span>
+          AI Visibility
+        </button>
+      </nav>
+    </aside>
+    <main class="content">
+      <section class="panel active" id="panel-overview"></section>
+      <section class="panel" id="panel-plan"></section>
+      <section class="panel" id="panel-onpage"></section>
+      <section class="panel" id="panel-links"></section>
+      <section class="panel" id="panel-media"></section>
+      <section class="panel" id="panel-schema"></section>
+      <section class="panel" id="panel-tech"></section>
+      <section class="panel" id="panel-serp"></section>
+      <section class="panel" id="panel-regex"></section>
+      <section class="panel" id="panel-ai"></section>
+    </main>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
