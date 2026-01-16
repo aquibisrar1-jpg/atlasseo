@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Atlas SEO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
@@ -13,14 +16,26 @@
     </div>
     <div>
       <h1>Atlas SEO</h1>
-      <p class="subtitle">No-API audit + SERP helper</p>
+      <p class="subtitle">All-in-one SEO audit + SERP helper</p>
     </div>
-    <button id="refresh" class="primary">Refresh Audit</button>
+    <button id="refresh" class="primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m0 0a9 9 0 0 1 9-9m-9 9a9 9 0 0 0 9 9"/>
+      </svg>
+      Refresh Audit
+    </button>
   </header>
 
   <section class="toolbar">
     <div class="control-group">
-      <button id="exportAuditCsv" class="ghost">Export Audit CSV</button>
+      <button id="exportAuditCsv" class="secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7,10 12,15 17,10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export CSV
+      </button>
       <a href="https://buymeacoffee.com/aquibisrark" target="_blank" rel="noopener" class="ghost donate-link">Buy me a coffee</a>
     </div>
   </section>

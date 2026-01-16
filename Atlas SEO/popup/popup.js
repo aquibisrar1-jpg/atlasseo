@@ -1660,29 +1660,34 @@ function renderRegex() {
 
 async function refreshAudit() {
   setStatus("Running audit...");
-  const tab = await getActiveTab();
-  if (!tab || !isValidTabUrl(tab.url)) {
-    setStatus("Open a normal web page to analyze.");
-    renderEmptyPanels();
-    return;
-  }
+  try {
+    const tab = await getActiveTab();
+    if (!tab || !isValidTabUrl(tab.url)) {
+      setStatus("Open a normal web page to analyze.");
+      renderEmptyPanels();
+      return;
+    }
 
-  state.previous = await loadPreviousAudit(tab.url);
-  const response = await sendMessage(tab.id, { type: "analyze" }).catch(() => null);
-  if (!response || !response.ok) {
-    setStatus("Unable to read page. Try refreshing the page.");
-    renderEmptyPanels();
-    return;
-  }
+    state.previous = await loadPreviousAudit(tab.url).catch(() => null);
+    const response = await sendMessage(tab.id, { type: "analyze" }).catch(() => null);
+    if (!response || !response.ok) {
+      setStatus("Unable to read page. Try refreshing the page.");
+      renderEmptyPanels();
+      return;
+    }
 
-  state.analysis = { ...response.data, auditedAt: new Date().toISOString() };
-  await storeAudit(tab.url, state.analysis);
-  await saveRecentAudit(tab.url);
-  await loadRecentAudits();
-  const serpResponse = await sendMessage(tab.id, { type: "serp" });
-  state.serp = serpResponse && serpResponse.ok ? serpResponse.data : null;
-  setStatus("Audit complete.");
-  renderAll();
+    state.analysis = { ...response.data, auditedAt: new Date().toISOString() };
+    await storeAudit(tab.url, state.analysis).catch(() => {});
+    await saveRecentAudit(tab.url).catch(() => {});
+    await loadRecentAudits().catch(() => {});
+    const serpResponse = await sendMessage(tab.id, { type: "serp" }).catch(() => null);
+    state.serp = serpResponse && serpResponse.ok ? serpResponse.data : null;
+    setStatus("Audit complete.");
+    renderAll();
+  } catch (err) {
+    setStatus(`Audit error: ${err.message || "Unknown error"}`);
+    renderEmptyPanels();
+  }
 }
 
 function toCsv(rows) {
@@ -1927,11 +1932,12 @@ function extractHreflangFromDoc(doc, origin) {
   return hreflang;
 }
 
+// Normalize schema type (e.g., "http://schema.org/Product" -> "Product")
 function normalizeType(type) {
   if (!type) return "";
   const value = String(type);
-  if (value.includes("/")) return value.split("/").pop();
-  if (value.includes("#")) return value.split("#").pop();
+  if (value.includes("/")) return value.split("/").pop() || value;
+  if (value.includes("#")) return value.split("#").pop() || value;
   return value;
 }
 
