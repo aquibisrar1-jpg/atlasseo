@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Atlas SEO (No-API)",
+  "version": "0.1.0",
+  "description": "All-in-one SEO audit, crawl, and SERP helper without external APIs.",
+  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Atlas SEO",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content/collector.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
