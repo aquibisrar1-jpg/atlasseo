@@ -10,27 +10,69 @@ const panelMap = {
   overview: document.getElementById("panel-overview"),
   plan: document.getElementById("panel-plan"),
   onpage: document.getElementById("panel-onpage"),
+  content: document.getElementById("panel-content"),
   links: document.getElementById("panel-links"),
   media: document.getElementById("panel-media"),
   schema: document.getElementById("panel-schema"),
   tech: document.getElementById("panel-tech"),
+  jsseo: document.getElementById("panel-jsseo"),
+  ai: document.getElementById("panel-ai"),
   serp: document.getElementById("panel-serp"),
-  regex: document.getElementById("panel-regex"),
-  ai: document.getElementById("panel-ai")
+  regex: document.getElementById("panel-regex")
+};
+
+const toggleOverlayBtn = document.getElementById("toggleOverlay");
+
+// SEO Constants - Centralized thresholds for maintainability
+const SEO_LIMITS = {
+  TITLE_MIN: 30,
+  TITLE_MAX: 60,
+  META_DESC_MIN: 70,
+  META_DESC_MAX: 160,
+  WORD_COUNT_MIN: 300,
+  LCP_WARN: 2500,
+  LCP_DANGER: 4000,
+  CLS_WARN: 0.1,
+  CLS_DANGER: 0.25,
+  INP_WARN: 200,
+  INP_DANGER: 500,
+  FID_WARN: 100,
+  FID_DANGER: 300,
+  TTFB_WARN: 800,
+  TTFB_DANGER: 1200
 };
 
 const state = {
   analysis: null,
+  schemaOverride: null,
   previous: null,
   serp: null,
   crawl: null,
   serpGap: null,
   recentAudits: [],
   crawlProgress: { done: 0, total: 0 },
-  aiHighlightPayload: null
+  aiHighlightPayload: null,
+  overlayActive: false
 };
 
-function setStatus(text) {
+function setStatus(text, isLoading = false) {
+  // Auto-detect states from common keywords
+  const loadingKeywords = ["running", "analyzing", "crawling", "loading", "processing"];
+  const errorKeywords = ["error", "failed", "unable", "cannot"];
+  const successKeywords = ["complete", "success", "done", "ready"];
+
+  const textLower = text.toLowerCase();
+  const shouldShowLoading = isLoading || loadingKeywords.some(kw => textLower.includes(kw));
+  const isError = errorKeywords.some(kw => textLower.includes(kw));
+  const isSuccess = successKeywords.some(kw => textLower.includes(kw)) && !isError;
+
+  // Build class list
+  let className = "status";
+  if (shouldShowLoading) className += " loading";
+  if (isError) className += " error";
+  if (isSuccess) className += " success";
+
+  statusEl.className = className;
   statusEl.textContent = text;
 }
 
@@ -131,28 +173,32 @@ function pickSeverity(value, warn, danger) {
 
 function buildIssues(analysis) {
   const issues = [];
-  const titleLen = analysis.title.length;
-  if (!analysis.title) issues.push("Missing title tag.");
-  if (titleLen > 0 && titleLen < 30) issues.push("Title is short (< 30 chars).");
-  if (titleLen > 60) issues.push("Title is long (> 60 chars).");
+  const title = analysis.title || "";
+  const titleLen = title.length;
+  if (!title) issues.push("Missing title tag.");
+  if (titleLen > 0 && titleLen < SEO_LIMITS.TITLE_MIN) issues.push(`Title is short (< ${SEO_LIMITS.TITLE_MIN} chars).`);
+  if (titleLen > SEO_LIMITS.TITLE_MAX) issues.push(`Title is long (> ${SEO_LIMITS.TITLE_MAX} chars).`);
 
-  const metaLen = analysis.metaDescription.length;
-  if (!analysis.metaDescription) issues.push("Missing meta description.");
-  if (metaLen > 0 && metaLen < 70) issues.push("Meta description is short (< 70 chars).");
-  if (metaLen > 160) issues.push("Meta description is long (> 160 chars).");
+  const metaDesc = analysis.metaDescription || "";
+  const metaLen = metaDesc.length;
+  if (!metaDesc) issues.push("Missing meta description.");
+  if (metaLen > 0 && metaLen < SEO_LIMITS.META_DESC_MIN) issues.push(`Meta description is short (< ${SEO_LIMITS.META_DESC_MIN} chars).`);
+  if (metaLen > SEO_LIMITS.META_DESC_MAX) issues.push(`Meta description is long (> ${SEO_LIMITS.META_DESC_MAX} chars).`);
 
-  if (analysis.headings.h1 === 0) issues.push("No H1 found.");
-  if (analysis.headings.h1 > 1) issues.push("Multiple H1 tags detected.");
+  const headings = analysis.headings || {};
+  if ((headings.h1 ?? 0) === 0) issues.push("No H1 found.");
+  if ((headings.h1 ?? 0) > 1) issues.push("Multiple H1 tags detected.");
 
   if (!analysis.canonical) issues.push("Missing canonical tag.");
-  if (analysis.metaRobots.toLowerCase().includes("noindex")) issues.push("Meta robots contains noindex.");
+  if ((analysis.metaRobots || "").toLowerCase().includes("noindex")) issues.push("Meta robots contains noindex.");
 
-  if (analysis.images.missingAlt > 0) {
-    issues.push(`Images missing alt text: ${analysis.images.missingAlt}.`);
+  const images = analysis.images || {};
+  if ((images.missingAlt ?? 0) > 0) {
+    issues.push(`Images missing alt text: ${images.missingAlt}.`);
   }
 
-  if (analysis.wordCount > 0 && analysis.wordCount < 300) {
-    issues.push("Low word count (< 300 words).");
+  if ((analysis.wordCount ?? 0) > 0 && analysis.wordCount < SEO_LIMITS.WORD_COUNT_MIN) {
+    issues.push(`Low word count (< ${SEO_LIMITS.WORD_COUNT_MIN} words).`);
   }
 
   return issues;
@@ -302,11 +348,9 @@ function buildDiff(previous, current) {
 }
 
 function renderDiffList(diff) {
-  if (!diff.length) return `<div class="empty">No changes since last audit.</div>`;
-  return `<table class="table">
-    <tr><th>Metric</th><th>Before</th><th>After</th></tr>
-    ${diff.map((item) => `<tr><td>${item.label}</td><td>${item.before}</td><td>${item.after}</td></tr>`).join("")}
-  </table>`;
+  if (!diff || !diff.length) return `<div class="empty">No changes detected.</div>`;
+  const items = diff.map((entry) => `<li>${escapeHtml(entry.label || "")}: ${escapeHtml(entry.before || "-")} → ${escapeHtml(entry.after || "-")}</li>`).join("");
+  return `<ul class="issue-list">${items}</ul>`;
 }
 
 function summarizeCrawl(pages) {
@@ -396,10 +440,24 @@ function indexabilityReasons(page) {
 
 function pageDepth(url, origin) {
   try {
-    const parsed = new URL(url, origin);
-    return parsed.pathname.split("/").filter(Boolean).length;
+    const urlObj = new URL(url, origin);
+    return urlObj.pathname.split("/").filter(Boolean).length;
   } catch (err) {
     return 0;
+  }
+}
+
+function normalizeUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    urlObj.hash = "";
+    let normalized = urlObj.toString();
+    if (normalized.endsWith("/") && urlObj.pathname !== "/") {
+      normalized = normalized.slice(0, -1);
+    }
+    return normalized;
+  } catch (err) {
+    return url || "";
   }
 }
 
@@ -724,59 +782,66 @@ function storeAudit(url, analysis) {
 
 function buildFixPlan(analysis, crawl) {
   const tasks = [];
-  const titleLen = analysis.title.length;
-  const metaLen = analysis.metaDescription.length;
+  const title = analysis.title || "";
+  const titleLen = title.length;
+  const metaDesc = analysis.metaDescription || "";
+  const metaLen = metaDesc.length;
   const perf = analysis.performance || {};
+  const headings = analysis.headings || {};
+  const images = analysis.images || {};
+  const og = analysis.og || {};
+  const twitter = analysis.twitter || {};
+  const metaRobots = analysis.metaRobots || "";
 
-  const addTask = (title, impact, effort, why) => {
+  const addTask = (taskTitle, impact, effort, why) => {
     const score = impact * 10 - effort * 2;
-    tasks.push({ title, impact, effort, score, why });
+    tasks.push({ title: taskTitle, impact, effort, score, why });
   };
 
-  if (!analysis.title) addTask("Add a unique title tag", 9, 2, "Missing title hurts relevance and CTR.");
-  if (titleLen > 0 && titleLen < 30) addTask("Expand short title", 6, 2, "Short titles reduce topical clarity.");
-  if (titleLen > 60) addTask("Shorten long title", 5, 2, "Long titles truncate in SERPs.");
+  if (!title) addTask("Add a unique title tag", 9, 2, "Missing title hurts relevance and CTR.");
+  if (titleLen > 0 && titleLen < SEO_LIMITS.TITLE_MIN) addTask("Expand short title", 6, 2, "Short titles reduce topical clarity.");
+  if (titleLen > SEO_LIMITS.TITLE_MAX) addTask("Shorten long title", 5, 2, "Long titles truncate in SERPs.");
 
-  if (!analysis.metaDescription) addTask("Write a meta description", 7, 2, "Missing description reduces SERP control.");
-  if (metaLen > 0 && metaLen < 70) addTask("Expand short meta description", 5, 2, "Short descriptions reduce messaging.");
-  if (metaLen > 160) addTask("Trim long meta description", 4, 2, "Long descriptions truncate in SERPs.");
+  if (!metaDesc) addTask("Write a meta description", 7, 2, "Missing description reduces SERP control.");
+  if (metaLen > 0 && metaLen < SEO_LIMITS.META_DESC_MIN) addTask("Expand short meta description", 5, 2, "Short descriptions reduce messaging.");
+  if (metaLen > SEO_LIMITS.META_DESC_MAX) addTask("Trim long meta description", 4, 2, "Long descriptions truncate in SERPs.");
 
-  if (analysis.headings.h1 === 0) addTask("Add an H1", 8, 2, "Missing H1 weakens page structure.");
-  if (analysis.headings.h1 > 1) addTask("Reduce to one H1", 6, 3, "Multiple H1s blur topic focus.");
+  if ((headings.h1 ?? 0) === 0) addTask("Add an H1", 8, 2, "Missing H1 weakens page structure.");
+  if ((headings.h1 ?? 0) > 1) addTask("Reduce to one H1", 6, 3, "Multiple H1s blur topic focus.");
 
   if (!analysis.canonical) addTask("Add canonical tag", 7, 3, "Canonical prevents duplicate signals.");
-  if (analysis.metaRobots.toLowerCase().includes("noindex")) addTask("Remove noindex if unintended", 10, 2, "Noindex blocks ranking.");
+  if (metaRobots.toLowerCase().includes("noindex")) addTask("Remove noindex if unintended", 10, 2, "Noindex blocks ranking.");
 
   if (!analysis.viewport) addTask("Add viewport meta tag", 6, 2, "Improves mobile usability signals.");
 
-  if (!analysis.og.title || !analysis.og.description) addTask("Improve Open Graph tags", 4, 3, "Boosts social sharing quality.");
-  if (!analysis.twitter.card) addTask("Add Twitter card meta", 3, 3, "Improves social previews.");
+  if (!og.title || !og.description) addTask("Improve Open Graph tags", 4, 3, "Boosts social sharing quality.");
+  if (!twitter.card) addTask("Add Twitter card meta", 3, 3, "Improves social previews.");
 
-  if (analysis.images.missingAlt > 0) {
+  if ((images.missingAlt ?? 0) > 0) {
     addTask("Add missing image alt text", 6, 4, "Improves accessibility and image SEO.");
   }
-  if (analysis.images.shortAlt > 0) {
+  if ((images.shortAlt ?? 0) > 0) {
     addTask("Expand short alt text", 4, 3, "Short alt text reduces relevance signals.");
   }
-  if (analysis.images.missingSize > 0) {
+  if ((images.missingSize ?? 0) > 0) {
     addTask("Add width/height to images", 5, 4, "Reduces layout shifts and CLS.");
   }
-  if (analysis.images.largeImages > 0) {
+  if ((images.largeImages ?? 0) > 0) {
     addTask("Optimize oversized images", 6, 5, "Large images slow LCP and load time.");
   }
-  if (analysis.images.genericFilename > 0) {
+  if ((images.genericFilename ?? 0) > 0) {
     addTask("Rename generic image filenames", 3, 4, "Descriptive filenames help image SEO.");
   }
 
-  if (analysis.wordCount > 0 && analysis.wordCount < 300) {
+  if ((analysis.wordCount ?? 0) > 0 && analysis.wordCount < SEO_LIMITS.WORD_COUNT_MIN) {
     addTask("Expand thin content", 7, 5, "Low word count often underperforms.");
   }
 
-  if (perf.lcp && perf.lcp > 4000) addTask("Reduce LCP", 8, 6, "Slow LCP hurts rankings and UX.");
-  if (perf.cls && perf.cls > 0.25) addTask("Reduce layout shifts", 6, 5, "High CLS degrades UX metrics.");
-  if (perf.inp && perf.inp > 500) addTask("Reduce INP", 7, 6, "Slow interactions hurt Core Web Vitals.");
-  if (perf.fid && perf.fid > 300) addTask("Reduce FID", 6, 5, "High FID delays user interaction.");
-  if (perf.ttfb && perf.ttfb > 1200) addTask("Reduce server response time", 7, 6, "High TTFB slows rendering.");
+  if (perf.lcp && perf.lcp > SEO_LIMITS.LCP_DANGER) addTask("Reduce LCP", 8, 6, "Slow LCP hurts rankings and UX.");
+  if (perf.cls && perf.cls > SEO_LIMITS.CLS_DANGER) addTask("Reduce layout shifts", 6, 5, "High CLS degrades UX metrics.");
+  if (perf.inp && perf.inp > SEO_LIMITS.INP_DANGER) addTask("Reduce INP", 7, 6, "Slow interactions hurt Core Web Vitals.");
+  if (perf.fid && perf.fid > SEO_LIMITS.FID_DANGER) addTask("Reduce FID", 6, 5, "High FID delays user interaction.");
+  if (perf.ttfb && perf.ttfb > SEO_LIMITS.TTFB_DANGER) addTask("Reduce server response time", 7, 6, "High TTFB slows rendering.");
 
   if (analysis.structuredData?.issues?.length) {
     addTask("Fix structured data fields", 7, 5, "Schema lint issues can block rich results.");
@@ -829,16 +894,19 @@ function renderOverview(analysis) {
   const previous = state.previous;
   const diff = previous ? buildDiff(previous, analysis) : null;
   const regexHelpers = buildRegexHelpers(analysis);
+  const title = analysis.title || "";
+  const metaDesc = analysis.metaDescription || "";
+  const metaRobots = analysis.metaRobots || "";
   panelMap.overview.innerHTML = `
     <div class="card">
       <h3>Page Summary</h3>
       <div class="metric-grid">
-        <div class="metric"><span>URL</span>${analysis.url}</div>
-        <div class="metric"><span>Indexable</span>${analysis.metaRobots.toLowerCase().includes("noindex") ? "No" : "Likely"}</div>
-        <div class="metric"><span>Title Length</span>${analysis.title.length}</div>
-        <div class="metric"><span>Description Length</span>${analysis.metaDescription.length}</div>
-        <div class="metric"><span>Word Count</span>${analysis.wordCount}</div>
-        <div class="metric"><span>Text/HTML Ratio</span>${analysis.textRatio}</div>
+        <div class="metric"><span>URL</span>${analysis.url || "-"}</div>
+        <div class="metric"><span>Indexable</span>${metaRobots.toLowerCase().includes("noindex") ? "No" : "Likely"}</div>
+        <div class="metric"><span>Title Length</span>${title.length}</div>
+        <div class="metric"><span>Description Length</span>${metaDesc.length}</div>
+        <div class="metric"><span>Word Count</span>${analysis.wordCount ?? 0}</div>
+        <div class="metric"><span>Text/HTML Ratio</span>${analysis.textRatio ?? "-"}</div>
       </div>
       <div class="footer-note">Recommended: title 50–60 chars, description 120–160, word count 300+, text/HTML ratio > 0.1.</div>
     </div>
@@ -894,13 +962,14 @@ function renderOnPage(analysis) {
   const dependencyScore = jsRender
     ? Math.round((jsRender.jsTextShare + jsHeadingPct + jsLinkPct + jsSchemaPct) / 4)
     : 0;
-  const readability = analysis.contentQuality?.readability || {};
   panelMap.onpage.innerHTML = `
     <div class="card">
       <h3>Snippet Preview</h3>
       <div class="footer-note">${analysis.url}</div>
-      <div class="metric"><span>Title</span>${snippet.title || "-"}</div>
-      <div class="metric"><span>Description</span>${snippet.description || "-"}</div>
+      <div class="metric-grid">
+        <div class="metric"><span>Title</span>${snippet.title || "-"}</div>
+        <div class="metric"><span>Description</span>${snippet.description || "-"}</div>
+      </div>
     </div>
     <div class="card">
       <h3>Core Tags</h3>
@@ -914,85 +983,109 @@ function renderOnPage(analysis) {
       </table>
       <div class="footer-note">Best practice: 1 self-referencing canonical, noindex only when intentional.</div>
     </div>
+  `;
+}
+
+function renderContent(analysis) {
+  if (!panelMap.content) return;
+  const headingCounts = analysis.headings || {};
+  const headings = analysis.headingText || { h1: [], h2: [], h3: [] };
+  const ordered = headings.order || [];
+  const readability = analysis.contentQuality?.readability || {};
+
+  panelMap.content.innerHTML = `
     <div class="card">
-      <h3>Headings (Sequential Order)</h3>
+      <h3>Heading Structure</h3>
+      <div class="metric-grid">
+        <div class="metric"><span>H1</span>${headingCounts.h1 ?? 0}</div>
+        <div class="metric"><span>H2</span>${headingCounts.h2 ?? 0}</div>
+        <div class="metric"><span>H3</span>${headingCounts.h3 ?? 0}</div>
+        <div class="metric"><span>H4</span>${headingCounts.h4 ?? 0}</div>
+        <div class="metric"><span>H5</span>${headingCounts.h5 ?? 0}</div>
+        <div class="metric"><span>H6</span>${headingCounts.h6 ?? 0}</div>
+      </div>
+      <div class="footer-note">Recommended: exactly one H1, logical H2/H3 hierarchy.</div>
       ${ordered.length ? `<ul class="issue-list line-list">
         ${ordered.map((item) => `<li class="highlight-item jump-item" data-highlight-xpath="${escapeHtml(item.xpath || "")}" data-highlight-selector="${escapeHtml(item.selector || "")}" data-highlight-tag="${item.tag}" data-highlight-text="${escapeHtml(item.text)}">${item.tag.toUpperCase()} — ${escapeHtml(item.text)}</li>`).join("")}
       </ul>` : `<div class="empty">No H1/H2/H3 found.</div>`}
     </div>
+
     <div class="card">
-      <h3>Headings</h3>
+      <h3>Readability & Quality</h3>
       <div class="metric-grid">
-        <div class="metric"><span>H1</span>${analysis.headings.h1}</div>
-        <div class="metric"><span>H2</span>${analysis.headings.h2}</div>
-        <div class="metric"><span>H3</span>${analysis.headings.h3}</div>
-        <div class="metric"><span>H4</span>${analysis.headings.h4}</div>
-        <div class="metric"><span>H5</span>${analysis.headings.h5}</div>
-        <div class="metric"><span>H6</span>${analysis.headings.h6}</div>
+        <div class="metric"><span>Words</span>${analysis.wordCount || 0}</div>
+        <div class="metric"><span>Reading Ease</span>${readability.fleschReadingEase ?? "-"}</div>
+        <div class="metric"><span>Grade Level</span>${readability.fleschKincaidGrade ?? "-"}</div>
+        <div class="metric"><span>Sentences</span>${(analysis.html?.text || "").split(/\.\s+/).length || "-"}</div>
       </div>
-      <div class="footer-note">Recommended: exactly one H1, logical H2/H3 hierarchy, avoid skipped levels.</div>
     </div>
+
     <div class="card">
-      <h3>Content Quality</h3>
-      <div class="metric-grid">
-        <div class="metric"><span>Flesch Reading Ease</span>${readability.fleschReadingEase ?? "-"}</div>
-        <div class="metric"><span>Flesch-Kincaid Grade</span>${readability.fleschKincaidGrade ?? "-"}</div>
-        <div class="metric"><span>SMOG Index</span>${readability.smogIndex ?? "-"}</div>
-        <div class="metric"><span>Avg Sentence Length</span>${readability.avgSentenceLength ?? "-"}</div>
-        <div class="metric"><span>Avg Syllables/Word</span>${readability.avgSyllablesPerWord ?? "-"}</div>
-        <div class="metric"><span>Words</span>${readability.wordCount ?? "-"}</div>
+      <h3>Top Entities (Keywords)</h3>
+      <div class="tag-row">
+        ${(analysis.entities || []).map(e => `<span class="tag">${escapeHtml(e.entity)} (${e.count})</span>`).join('') || "<div class='empty'>No key entities found.</div>"}
       </div>
-      <div class="footer-note">Lower grade / higher reading ease is easier to read. Targets: Reading Ease 60–80, FK grade 6–10. Use density as a guide only.</div>
+    </div>
+
+    <div class="card">
+      <h3>Density Check</h3>
       <label>Target Keywords (comma or new line)</label>
       <textarea id="keywordDensityInput" class="textarea" rows="3" placeholder="keyword 1&#10;keyword 2"></textarea>
       <div class="buttons">
-        <button id="keywordDensityRun" class="btn primary">Analyze Density</button>
+        <button id="keywordDensityRun" class="btn primary">Analyze</button>
       </div>
       <div id="keywordDensityResults" class="table-scroll"></div>
     </div>
+  `;
+  attachKeywordDensityHandler();
+}
+
+function renderJSSEO(analysis) {
+  if (!panelMap.jsseo) return;
+  const jsRender = analysis.jsRender;
+  const jsAddedHeadings = jsRender?.added?.headings || [];
+  const jsAddedLinks = jsRender?.added?.links || [];
+  const jsAddedSchema = jsRender?.added?.schemaTypes || [];
+  const jsRemovedHeadings = jsRender?.removed?.headings || [];
+  const jsRemovedLinks = jsRender?.removed?.links || [];
+  const jsRemovedSchema = jsRender?.removed?.schemaTypes || [];
+  const baseline = jsRender?.baseline;
+  const rendered = jsRender?.rendered;
+  const tagChanges = jsRender?.tagChanges || [];
+  const jsHeadingPct = rendered?.headingCount ? Math.round((jsAddedHeadings.length / rendered.headingCount) * 100) : 0;
+  const jsLinkPct = rendered?.linkCount ? Math.round((jsAddedLinks.length / rendered.linkCount) * 100) : 0;
+  const jsSchemaPct = rendered?.schemaCount ? Math.round((jsAddedSchema.length / rendered.schemaCount) * 100) : 0;
+  const dependencyScore = jsRender
+    ? Math.round((jsRender.jsTextShare + jsHeadingPct + jsLinkPct + jsSchemaPct) / 4)
+    : 0;
+
+  panelMap.jsseo.innerHTML = `
     <div class="card">
-      <h3>JS Render Attribution</h3>
+      <h3>JS Dependency Score</h3>
       ${jsRender ? `
         <div class="metric-grid">
-          <div class="metric"><span>JS Dependency Score</span>${dependencyScore}%</div>
-          <div class="metric"><span>JS Content Share</span>${jsRender.jsTextShare}%</div>
+          <div class="metric"><span>Dependency</span>${dependencyScore}%</div>
+          <div class="metric"><span>JS Content</span>${jsRender.jsTextShare}%</div>
           <div class="metric"><span>Text Added</span>${jsRender.textAdded}</div>
-          <div class="metric"><span>Main Text Added</span>${jsRender.mainTextAdded}</div>
-          <div class="metric"><span>JS-only Headings</span>${jsAddedHeadings.length}</div>
-          <div class="metric"><span>JS-only Links</span>${jsAddedLinks.length}</div>
-          <div class="metric"><span>JS-only Schema</span>${jsAddedSchema.length}</div>
+          <div class="metric"><span>Links Added</span>${jsAddedLinks.length}</div>
+          <div class="metric"><span>Headings Added</span>${jsAddedHeadings.length}</div>
         </div>
-        <div class="footer-note">JS share is based on text added after initial HTML. Dependency score blends JS text share + JS-only headings/links/schema.</div>
-        <div class="footer-note">Guidance: dependency score < 25% and JS content share < 20% are ideal. JS-only headings/links/schema should be 0 when possible. Text added < 500 chars, main text added < 300 chars are safer.</div>
+        <div class="footer-note">Dependency Score > 25% suggests heavy reliance on Client-Side Rendering (CSR).</div>
         ${baseline && rendered ? `<table class="table">
-          <tr><th>Metric</th><th>Bot-ready</th><th>Rendered</th><th>Δ</th></tr>
-          <tr><td>Headings (H1-3)</td><td>${baseline.headingCount}</td><td>${rendered.headingCount}</td><td>${rendered.headingCount - baseline.headingCount}</td></tr>
-          <tr><td>Internal Links</td><td>${baseline.linkCount}</td><td>${rendered.linkCount}</td><td>${rendered.linkCount - baseline.linkCount}</td></tr>
-          <tr><td>Schema Types</td><td>${baseline.schemaCount}</td><td>${rendered.schemaCount}</td><td>${rendered.schemaCount - baseline.schemaCount}</td></tr>
-          <tr><td>Text Length</td><td>${baseline.textLength}</td><td>${rendered.textLength}</td><td>${rendered.textLength - baseline.textLength}</td></tr>
-          <tr><td>Main Text Length</td><td>${baseline.mainTextLength}</td><td>${rendered.mainTextLength}</td><td>${rendered.mainTextLength - baseline.mainTextLength}</td></tr>
-        </table>` : `<div class="empty">Baseline snapshot not ready yet.</div>`}
-        ${tagChanges.length ? `<div class="footer-note">SEO tags changed after JS:</div>
-          <table class="table">
-            <tr><th>Tag</th><th>Before</th><th>After</th></tr>
-            ${tagChanges.map((item) => `<tr><td>${escapeHtml(item.label)}</td><td>${escapeHtml(item.before || "-")}</td><td>${escapeHtml(item.after || "-")}</td></tr>`).join("")}
-          </table>` : `<div class="empty">No SEO tag changes detected after JS.</div>`}
-      ` : `<div class="empty">JS diff is not ready yet. Refresh the audit after the page finishes loading.</div>`}
+          <tr><th>Metric</th><th>HTML (Raw)</th><th>Rendered</th><th>Δ</th></tr>
+          <tr><td>Headings</td><td>${baseline.headingCount}</td><td>${rendered.headingCount}</td><td>${rendered.headingCount - baseline.headingCount}</td></tr>
+          <tr><td>Links</td><td>${baseline.linkCount}</td><td>${rendered.linkCount}</td><td>${rendered.linkCount - baseline.linkCount}</td></tr>
+          <tr><td>Text</td><td>${baseline.textLength}</td><td>${rendered.textLength}</td><td>${rendered.textLength - baseline.textLength}</td></tr>
+        </table>` : ""}
+      ` : `<div class="empty">JS Render analysis requires page reload or is pending.</div>`}
     </div>
+
     <div class="card">
-      <h3>JS-only Headings</h3>
-      ${jsAddedHeadings.length ? `<ul class="issue-list line-list">
-        ${jsAddedHeadings.slice(0, 12).map((item) => `<li class="highlight-item jump-item" data-highlight-xpath="${escapeHtml(item.xpath || "")}" data-highlight-selector="${escapeHtml(item.selector || "")}" data-highlight-tag="${item.tag}" data-highlight-text="${escapeHtml(item.text)}">${item.tag.toUpperCase()} — ${escapeHtml(item.text)}</li>`).join("")}
-      </ul>` : `<div class="empty">No JS-only headings detected.</div>`}
+      <h3>JS-Only Content</h3>
+      ${jsAddedHeadings.length ? `<div class="footer-note">JS-Only Headings</div><ul class="issue-list">${jsAddedHeadings.slice(0, 5).map(h => `<li>${h.tag} - ${h.text}</li>`).join('')}</ul>` : ""}
+      ${jsAddedLinks.length ? `<div class="footer-note">JS-Only Links</div><div class="empty">${jsAddedLinks.length} internal links depend on JS.</div>` : ""}
     </div>
-    <div class="card">
-      <h3>JS-only Links</h3>
-      ${jsAddedLinks.length ? `<table class="table">
-        <tr><th>Anchor</th><th>URL</th></tr>
-        ${jsAddedLinks.slice(0, 12).map((link) => `<tr class="highlight-item jump-item" data-highlight-xpath="${escapeHtml(link.xpath || "")}" data-highlight-selector="${escapeHtml(link.selector || "")}" data-highlight-href="${escapeHtml(link.href)}" data-highlight-text="${escapeHtml(link.text || "")}">
-          <td>${escapeHtml(link.text || "-")}</td><td>${escapeHtml(link.href)}</td></tr>`).join("")}
-      </table>` : `<div class="empty">No JS-only internal links detected.</div>`}
-    </div>
+
     <div class="card">
       <h3>JS-only Schema Types</h3>
       ${jsAddedSchema.length ? jsAddedSchema.map((type) => `<span class="tag">${escapeHtml(type)}</span>`).join("") : `<div class="empty">No JS-only schema types detected.</div>`}
@@ -1005,7 +1098,7 @@ function renderOnPage(analysis) {
           <div class="metric"><span>Links Removed</span>${jsRemovedLinks.length}</div>
           <div class="metric"><span>Schema Removed</span>${jsRemovedSchema.length}</div>
         </div>
-        ${jsRemovedHeadings.length ? `<div class="footer-note">Removed headings (top 6)</div><ul class="issue-list line-list">
+        ${jsRemovedHeadings.length ? `<div class="footer-note">Removed headings (top 6)</div><ul class="issue-list">
           ${jsRemovedHeadings.slice(0, 6).map((item) => `<li>${item.tag.toUpperCase()} — ${escapeHtml(item.text)}</li>`).join("")}
         </ul>` : ""}
       ` : `<div class="empty">No headings/links/schema removed after JS.</div>`}
@@ -1022,19 +1115,14 @@ function renderOnPage(analysis) {
     <div class="card">
       <h3>Social Tags</h3>
       <table class="table">
-        <tr><th>OG Title</th><td>${analysis.og.title || "-"}</td></tr>
-        <tr><th>OG Description</th><td>${analysis.og.description || "-"}</td></tr>
-        <tr><th>OG URL</th><td>${analysis.og.url || "-"}</td></tr>
-        <tr><th>OG Image</th><td>${analysis.og.image || "-"}</td></tr>
-        <tr><th>Twitter Card</th><td>${analysis.twitter.card || "-"}</td></tr>
+        <tr><th>OG Title</th><td>${(analysis.og || {}).title || "-"}</td></tr>
+        <tr><th>OG Description</th><td>${(analysis.og || {}).description || "-"}</td></tr>
+        <tr><th>OG URL</th><td>${(analysis.og || {}).url || "-"}</td></tr>
+        <tr><th>OG Image</th><td>${(analysis.og || {}).image || "-"}</td></tr>
+        <tr><th>Twitter Card</th><td>${(analysis.twitter || {}).card || "-"}</td></tr>
       </table>
     </div>
-    <div class="card">
-      <h3>Entities</h3>
-      ${analysis.entities?.length ? analysis.entities.map((entity) => `<span class="tag">${entity.entity}</span>`).join("") : `<div class="empty">No entities detected.</div>`}
-    </div>
   `;
-  attachKeywordDensityHandler();
 }
 
 function renderAiVisibility(analysis) {
@@ -1065,13 +1153,13 @@ function renderAiVisibility(analysis) {
 
   state.aiHighlightPayload = sectionVisibility.length
     ? {
-        sections: sectionVisibility.map((row) => ({
-          section: row.section,
-          visible: row.visibility.startsWith("Visible")
-        })),
-        siteBlocked,
-        noImageAi: aiFlags.noimageai
-      }
+      sections: sectionVisibility.map((row) => ({
+        section: row.section,
+        visible: row.visibility.startsWith("Visible")
+      })),
+      siteBlocked,
+      noImageAi: aiFlags.noimageai
+    }
     : null;
 
   panelMap.ai.innerHTML = `
@@ -1099,7 +1187,7 @@ function renderAiVisibility(analysis) {
         <div class="table-scroll"><table class="table">
           <tr><th>Section</th><th>Visibility</th><th>HTML Text</th><th>JS Text +</th><th>HTML H</th><th>JS H +</th><th>HTML L</th><th>JS L +</th></tr>
           ${sectionVisibility.map((row) => {
-            return `<tr>
+    return `<tr>
             <td>${row.section.toUpperCase()}</td>
             <td><span class="status-pill ${row.statusClass}">${row.visibility}</span></td>
             <td class="mono">${formatCount(row.htmlText)}</td>
@@ -1109,7 +1197,7 @@ function renderAiVisibility(analysis) {
             <td class="mono">${row.htmlLinks}</td>
             <td class="mono">${row.jsLinksAdded}</td>
           </tr>`;
-          }).join("")}
+  }).join("")}
         </table></div>` : `<div class="empty">Section visibility data not ready yet.</div>`}
       ${blockedAgents.length ? `<div class="footer-note">Blocked agents: ${blockedAgents.join(", ")}</div>` : ""}
       <div class="footer-note">Logic: robots.txt + meta noai/noimageai + HTML vs JS-rendered deltas. JS-only sections may not be accessible to non-rendering bots.</div>
@@ -1122,14 +1210,14 @@ function renderAiVisibility(analysis) {
 }
 
 function renderLinks(analysis) {
-  const links = analysis.links;
+  const links = analysis.links || {};
   const grouped = {
     header: [],
     body: [],
     footer: [],
     other: []
   };
-  links.internalLinks.forEach((link) => {
+  (links.internalLinks || []).forEach((link) => {
     const section = link.section === "main" ? "body" : link.section;
     const key = grouped[section] ? section : "other";
     grouped[key].push(link);
@@ -1156,18 +1244,18 @@ function renderLinks(analysis) {
     <div class="card">
       <h3>Link Summary</h3>
       <div class="metric-grid">
-        <div class="metric"><span>Total</span>${links.total}</div>
-        <div class="metric"><span>Internal</span>${links.internal}</div>
-        <div class="metric"><span>External</span>${links.external}</div>
-        <div class="metric"><span>Nofollow</span>${links.nofollow}</div>
-        <div class="metric"><span>UGC</span>${links.ugc}</div>
-        <div class="metric"><span>Sponsored</span>${links.sponsored}</div>
+        <div class="metric"><span>Total</span>${links.total ?? 0}</div>
+        <div class="metric"><span>Internal</span>${links.internal ?? 0}</div>
+        <div class="metric"><span>External</span>${links.external ?? 0}</div>
+        <div class="metric"><span>Nofollow</span>${links.nofollow ?? 0}</div>
+        <div class="metric"><span>UGC</span>${links.ugc ?? 0}</div>
+        <div class="metric"><span>Sponsored</span>${links.sponsored ?? 0}</div>
       </div>
       <div class="footer-note">Recommended: internal links > external, nofollow/ugc/sponsored only when required.</div>
     </div>
     <div class="card">
       <h3>Internal Links (Hover to Highlight)</h3>
-      ${links.internalLinks.length ? `
+      ${(links.internalLinks || []).length ? `
         ${renderTable(grouped.header, "Header Links")}
         ${renderTable(grouped.body, "Body Links")}
         ${renderTable(grouped.footer, "Footer Links")}
@@ -1178,26 +1266,59 @@ function renderLinks(analysis) {
 }
 
 function renderMedia(analysis) {
-  const samples = analysis.images.samples || [];
-  const maxDim = analysis.images.maxDimensions || {};
-  const formatCounts = analysis.images.formatCounts || {};
+  const images = analysis.images || {};
+  const samples = images.samples || [];
+  const maxDim = images.maxDimensions || {};
+  const formatCounts = images.formatCounts || {};
+
+  // Format icon SVGs for visual recognition
+  const formatIcons = {
+    webp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7v10l4-5 4 5 4-7 4 7V7"/></svg>',
+    png: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="2" fill="currentColor"/><path d="M21 15l-5-5-8 8"/></svg>',
+    jpg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21"/></svg>',
+    jpeg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21"/></svg>',
+    gif: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>',
+    svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
+    avif: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5"/><circle cx="12" cy="12" r="3"/></svg>',
+    ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>',
+    bmp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>',
+  };
+
+  // Format-specific color classes
+  const formatColors = {
+    webp: 'format-webp',
+    png: 'format-png',
+    jpg: 'format-jpg',
+    jpeg: 'format-jpg',
+    gif: 'format-gif',
+    svg: 'format-svg',
+    avif: 'format-avif',
+    ico: 'format-ico',
+    bmp: 'format-bmp',
+  };
+
   const formatTags = Object.keys(formatCounts).length
     ? Object.entries(formatCounts)
       .sort((a, b) => b[1] - a[1])
-      .map(([fmt, count]) => `<span class="tag">${fmt.toUpperCase()} ${count}</span>`).join("")
+      .map(([fmt, count]) => {
+        const fmtLower = fmt.toLowerCase();
+        const icon = formatIcons[fmtLower] || '';
+        const colorClass = formatColors[fmtLower] || '';
+        return `<span class="tag format-tag ${colorClass}">${icon}<span class="format-label">${fmt.toUpperCase()}</span><span class="format-count">${count}</span></span>`;
+      }).join("")
     : "";
   panelMap.media.innerHTML = `
     <div class="card">
       <h3>Images</h3>
       <div class="metric-grid">
-        <div class="metric"><span>Total</span>${analysis.images.total}</div>
-        <div class="metric"><span>Missing Alt</span>${analysis.images.missingAlt}</div>
-        <div class="metric"><span>Short Alt</span>${analysis.images.shortAlt}</div>
-        <div class="metric"><span>Missing Size</span>${analysis.images.missingSize}</div>
-        <div class="metric"><span>Large Images</span>${analysis.images.largeImages}</div>
-        <div class="metric"><span>Generic Filenames</span>${analysis.images.genericFilename}</div>
-        <div class="metric"><span>Total Size</span>${formatKb(analysis.images.totalBytes)}</div>
-        <div class="metric"><span>Largest File</span>${formatKb(analysis.images.maxBytes)}</div>
+        <div class="metric"><span>Total</span>${images.total ?? 0}</div>
+        <div class="metric"><span>Missing Alt</span>${images.missingAlt ?? 0}</div>
+        <div class="metric"><span>Short Alt</span>${images.shortAlt ?? 0}</div>
+        <div class="metric"><span>Missing Size</span>${images.missingSize ?? 0}</div>
+        <div class="metric"><span>Large Images</span>${images.largeImages ?? 0}</div>
+        <div class="metric"><span>Generic Filenames</span>${images.genericFilename ?? 0}</div>
+        <div class="metric"><span>Total Size</span>${formatKb(images.totalBytes)}</div>
+        <div class="metric"><span>Largest File</span>${formatKb(images.maxBytes)}</div>
         <div class="metric"><span>Max Dimensions</span>${maxDim.width ? `${maxDim.width}x${maxDim.height}` : "-"}</div>
       </div>
       <p class="footer-note">Large images use a 2000px threshold. Missing size flags absent width/height attributes.</p>
@@ -1229,17 +1350,58 @@ function renderSchema(analysis) {
     <div class="card">
       <h3>Structured Data</h3>
       ${typeList.length ? typeList.map((type) => `<span class="tag">${type}</span>`).join("") : `<div class="empty">No structured data types detected.</div>`}
-      <div class="footer-note">Items detected: ${structured.itemsCount}</div>
+  <div class="footer-note">Items detected: ${structured.itemsCount}</div>
         ${Object.keys(typeCounts).length ? `<div class="footer-note">Counts: ${Object.entries(typeCounts).map(([type, count]) => `${type} (${count})`).join(", ")}</div>` : ""}
         ${structured.issues.length ? `<ul class="issue-list">${structured.issues.map((issue) => `<li>${issue}</li>`).join("")}</ul>` : `<div class="empty">No schema lint issues found.</div>`}
         ${structured.warnings.length ? `<div class="footer-note">Warnings:</div><ul class="issue-list">${structured.warnings.map((warning) => `<li>${warning}</li>`).join("")}</ul>` : ""}
-      <div class="footer-note">Goal: 0 schema issues/warnings and match visible content.</div>
+  <div class="footer-note">Goal: 0 schema issues/warnings and match visible content.</div>
     </div>
     <div class="card">
       <h3>Hreflang</h3>
-      ${analysis.hreflang.length ? `<table class="table">${analysis.hreflang.map((item) => `<tr><td>${item.lang}</td><td>${item.href}</td></tr>`).join("")}</table>` : `<div class="empty">No hreflang links found.</div>`}
+      ${(analysis.hreflang || []).length ? `<table class="table">${analysis.hreflang.map((item) => `<tr><td>${escapeHtml(item.lang || "-")}</td><td>${escapeHtml(item.href || "-")}</td></tr>`).join("")}</table>` : `<div class="empty">No hreflang links found.</div>`}
     </div>
+    ${renderSchemaGenerator(analysis)}
   `;
+
+  // Attach handlers for generated schema
+  setTimeout(() => {
+    // Copy Button
+    const copyBtn = document.getElementById("copySchema");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const schemaEl = document.getElementById("schemaOutput");
+        if (schemaEl) {
+          navigator.clipboard.writeText(schemaEl.value)
+            .then(() => setStatus("Schema copied to clipboard!"))
+            .catch(() => setStatus("Failed to copy schema."));
+        }
+      });
+    }
+
+    // Validate Button
+    const validateBtn = document.getElementById("validateSchema");
+    if (validateBtn) {
+      validateBtn.addEventListener("click", () => {
+        const schemaEl = document.getElementById("schemaOutput");
+        if (schemaEl) {
+          navigator.clipboard.writeText(schemaEl.value)
+            .then(() => {
+              setStatus("Copied! Opening Rich Results Test...");
+              chrome.tabs.create({ url: "https://search.google.com/test/rich-results" });
+            });
+        }
+      });
+    }
+
+    // Type Override
+    const typeSelect = document.getElementById("schemaTypeSelect");
+    if (typeSelect) {
+      typeSelect.addEventListener("change", (e) => {
+        state.schemaOverride = e.target.value;
+        renderSchema(state.analysis);
+      });
+    }
+  }, 0);
 }
 
 function renderTech(analysis) {
@@ -1256,7 +1418,7 @@ function renderTech(analysis) {
   panelMap.tech.innerHTML = `
     <div class="card">
       <h3>Detected Tech</h3>
-      ${analysis.tech.length ? analysis.tech.map((t) => `<span class="tag">${t}</span>`).join("") : `<div class="empty">No tech signals detected.</div>`}
+      ${(analysis.tech || []).length ? (analysis.tech || []).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("") : `<div class="empty">No tech signals detected.</div>`}
     </div>
     <div class="card">
       <h3>Tech by Category</h3>
@@ -1270,7 +1432,7 @@ function renderTech(analysis) {
 
 function renderSerp(serp) {
   if (!serp || !serp.isSerp) {
-    panelMap.serp.innerHTML = `<div class="empty">Open a Google search results page to analyze the SERP.</div>`;
+    panelMap.serp.innerHTML = `<div class="empty"> Open a Google search results page to analyze the SERP.</div> `;
     return;
   }
   panelMap.serp.innerHTML = `
@@ -1414,7 +1576,7 @@ async function analyzeSerpGap(serp, targetUrl) {
 function renderCrawl(crawl) {
   if (!panelMap.crawl) return;
   if (!crawl) {
-    panelMap.crawl.innerHTML = `<div class="empty">Run a crawl to see site-level data.</div>`;
+    panelMap.crawl.innerHTML = `<div class="empty"> Run a crawl to see site - level data.</div> `;
     return;
   }
   const progress = state.crawlProgress || { done: 0, total: 0 };
@@ -1438,35 +1600,35 @@ function renderCrawl(crawl) {
       <div class="bar-label">${label}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${pctWidth}%"></div></div>
       <div class="bar-value">${value}</div>
-    </div>`;
+    </div> `;
   };
   const depthRows = depthDistribution.length
-    ? depthDistribution.map((bucket) => barRow(`Depth ${bucket.depth}`, bucket.count, maxDepthCount)).join("")
-    : `<div class="empty">No depth data yet.</div>`;
+    ? depthDistribution.map((bucket) => barRow(`Depth ${bucket.depth} `, bucket.count, maxDepthCount)).join("")
+    : `<div class="empty"> No depth data yet.</div> `;
   const intentRows = intentMix.length
     ? intentMix.slice(0, 6).map((row) => barRow(row.intent, row.count, maxIntentCount)).join("")
-    : `<div class="empty">No intent mix yet.</div>`;
+    : `<div class="empty"> No intent mix yet.</div> `;
   const orphanList = sitemapStats.orphanCandidates.length
-    ? `<div class="table-scroll"><table class="table">
-        <tr><th>Orphan candidates (in sitemap, no inbound)</th></tr>
-        ${sitemapStats.orphanCandidates.map((page) => `<tr><td>${page.url}</td></tr>`).join("")}
-      </table></div>`
-    : `<div class="empty">No orphan candidates detected.</div>`;
+    ? `<div class="table-scroll"> <table class="table">
+    <tr><th>Orphan candidates (in sitemap, no inbound)</th></tr>
+    ${sitemapStats.orphanCandidates.map((page) => `<tr><td>${page.url}</td></tr>`).join("")}
+  </table></div> `
+    : `<div class="empty"> No orphan candidates detected.</div> `;
   const notInSitemapList = sitemapStats.notInSitemapSamples.length
-    ? `<div class="table-scroll"><table class="table">
-        <tr><th>Discovered, not in sitemap</th></tr>
-        ${sitemapStats.notInSitemapSamples.map((page) => `<tr><td>${page.url}</td></tr>`).join("")}
-      </table></div>`
-    : `<div class="empty">No off-sitemap samples found.</div>`;
+    ? `<div class="table-scroll"> <table class="table">
+    <tr><th>Discovered, not in sitemap</th></tr>
+    ${sitemapStats.notInSitemapSamples.map((page) => `<tr><td>${page.url}</td></tr>`).join("")}
+  </table></div> `
+    : `<div class="empty"> No off - sitemap samples found.</div> `;
   const blockerList = blockerStats.samples.length
-    ? `<div class="table-scroll"><table class="table">
-        <tr><th>Status</th><th>Reason</th><th>URL</th></tr>
-        ${blockerStats.samples.map((page) => {
-          const reason = indexabilityReasons(page);
-          return `<tr><td>${page.status}</td><td>${reason}</td><td>${page.url}</td></tr>`;
-        }).join("")}
-      </table></div>`
-    : `<div class="empty">No blocker samples yet.</div>`;
+    ? `<div class="table-scroll"> <table class="table">
+    <tr><th>Status</th><th>Reason</th><th>URL</th></tr>
+    ${blockerStats.samples.map((page) => {
+      const reason = indexabilityReasons(page);
+      return `<tr><td>${page.status}</td><td>${reason}</td><td>${page.url}</td></tr>`;
+    }).join("")}
+  </table></div> `
+    : `<div class="empty"> No blocker samples yet.</div> `;
 
   panelMap.crawl.innerHTML = `
     <div class="card">
@@ -1577,10 +1739,10 @@ function renderCrawl(crawl) {
         <table class="table">
           <tr><th>Status</th><th>Indexable</th><th>Depth</th><th>Source</th><th>Reason</th><th>Title</th><th>URL</th></tr>
           ${pages.slice(0, 50).map((page) => {
-            const reason = indexabilityReasons(page);
-            const indexable = reason === "Indexable" ? "Yes" : "No";
-            return `<tr><td>${page.status}</td><td>${indexable}</td><td>${page.depth ?? pageDepth(page.url)}</td><td>${page.source || "-"}</td><td>${reason}</td><td>${page.title || "-"}</td><td>${page.url}</td></tr>`;
-          }).join("")}
+    const reason = indexabilityReasons(page);
+    const indexable = reason === "Indexable" ? "Yes" : "No";
+    return `<tr><td>${page.status}</td><td>${indexable}</td><td>${page.depth ?? pageDepth(page.url)}</td><td>${page.source || "-"}</td><td>${reason}</td><td>${page.title || "-"}</td><td>${page.url}</td></tr>`;
+  }).join("")}
         </table>
       </div>
       <p class="footer-note">Showing up to 50 pages. Reason explains indexability.</p>
@@ -1588,33 +1750,86 @@ function renderCrawl(crawl) {
   `;
 }
 
+
+function safeRender(name, fn) {
+  try {
+    fn();
+  } catch (e) {
+    console.error(`[SafeRender] Error in ${name}:`, e);
+    // Map function name to panel key
+    const keyMap = {
+      renderoverview: "overview",
+      renderfixplan: "plan",
+      renderonpage: "onpage",
+      rendercontent: "content",
+      renderlinks: "links",
+      rendermedia: "media",
+      renderschema: "schema",
+      rendertech: "tech",
+      renderjsseo: "jsseo",
+      renderaivisibility: "ai",
+      renderserp: "serp",
+      renderregex: "regex"
+    };
+    const key = keyMap[name.toLowerCase()] || name.replace("render", "").toLowerCase();
+    const panel = panelMap[key];
+    if (panel) {
+      panel.innerHTML = `
+        <div class="card error-card">
+          <h3>Data Unavailable</h3>
+          <p>This section failed to render. Please refresh.</p>
+          <div class="footer-note">Error: ${escapeHtml(e.message || "Unknown error")}</div>
+        </div>
+      `;
+    }
+  }
+}
+
 function renderAll() {
   if (!state.analysis) {
     renderEmptyPanels();
     return;
   }
-  renderOverview(state.analysis);
-  renderFixPlan(state.analysis, state.crawl);
-  renderOnPage(state.analysis);
-  renderAiVisibility(state.analysis);
-  renderLinks(state.analysis);
-  renderMedia(state.analysis);
-  renderSchema(state.analysis);
-  renderTech(state.analysis);
-  renderSerp(state.serp);
-  renderRegex();
+
+  safeRender("renderOverview", () => renderOverview(state.analysis));
+  safeRender("renderFixPlan", () => renderFixPlan(state.analysis, state.crawl));
+  safeRender("renderOnPage", () => renderOnPage(state.analysis));
+  safeRender("renderContent", () => renderContent(state.analysis));
+  safeRender("renderLinks", () => renderLinks(state.analysis));
+  safeRender("renderMedia", () => renderMedia(state.analysis));
+  safeRender("renderSchema", () => renderSchema(state.analysis));
+  safeRender("renderTech", () => renderTech(state.analysis));
+  safeRender("renderJSSEO", () => renderJSSEO(state.analysis));
+  safeRender("renderAiVisibility", () => renderAiVisibility(state.analysis));
+  safeRender("renderSerp", () => renderSerp(state.serp));
+  safeRender("renderRegex", () => renderRegex());
 }
 
 async function getActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tab;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab || null;
+  } catch (err) {
+    console.error("[Atlas] Failed to get active tab:", err);
+    return null;
+  }
 }
 
 function sendMessage(tabId, message) {
   return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tabId, message, (response) => {
-      resolve(response);
-    });
+    try {
+      chrome.tabs.sendMessage(tabId, message, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn("[Atlas] Message failed:", chrome.runtime.lastError.message);
+          resolve(null);
+          return;
+        }
+        resolve(response);
+      });
+    } catch (err) {
+      console.error("[Atlas] sendMessage error:", err);
+      resolve(null);
+    }
   });
 }
 
@@ -1654,8 +1869,105 @@ function renderRegex() {
       <div id="regexWarnings" class="warn-box" style="display:none;"></div>
       <div class="footer-note">Handles GA4 “full match” vs GSC “contains” and warns on RE2-unsafe patterns.</div>
     </div>
-  `;
+    `;
   attachRegexBuilderHandlers();
+}
+
+// ============================================
+// FEATURE: SCHEMA & ENTITY ENGINE
+// ============================================
+
+function renderSchemaGenerator(analysis) {
+  if (!window.SchemaBuilder) return '<div class="card"><div class="empty">Schema Builder loading...</div></div>';
+
+  const types = [
+    'Article', 'BlogPosting', 'NewsArticle', 'Product',
+    'FAQPage', 'Recipe', 'LocalBusiness', 'Organization',
+    'Event', 'JobPosting', 'Course', 'BreadcrumbList', 'WebPage'
+  ];
+
+  // Default to Article if not selected
+  const selectedType = state.schemaOverride || 'Article';
+
+  let schemaJson;
+  try {
+    const builtSchema = SchemaBuilder.build(selectedType, analysis);
+    schemaJson = JSON.stringify(builtSchema, null, 2);
+  } catch (err) {
+    console.error(err);
+    return '<div class="card"><div class="status error">Builder Error: ' + err.message + '</div></div>';
+  }
+
+  const typeOptions = types.map(t =>
+    `<option value="${t}" ${t === selectedType ? 'selected' : ''}>${t}</option>`
+  ).join('');
+
+  return `
+    <div class="card schema-engine-card">
+      <h3 style="margin-bottom:12px;">Schema Builder</h3>
+      
+      <div style="margin-bottom:16px;">
+        <div class="label" style="margin-bottom:4px; font-weight:600;">Build schema for:</div>
+        <select id="schemaTypeSelect" style="width:100%; padding:8px; border-radius: var(--radius); border:1px solid var(--border-medium); background: var(--bg-card); color: var(--text-primary);">
+             ${typeOptions}
+        </select>
+        <div class="help-text" style="margin-top:4px; font-size:11px; color:var(--text-secondary);">
+          Select a type to generate a template populated with this page's data.
+        </div>
+      </div>
+
+      <div class="schema-code-wrapper" style="position:relative; display:flex; flex-direction:column;">
+        <textarea class="code-block" id="schemaOutput" spellcheck="false" style="max-height:350px; min-height:200px; overflow:auto; resize:vertical; font-family:monospace; white-space:pre; border:1px solid var(--border-medium); background:var(--bg-secondary); color:var(--text-code); padding:10px; border-radius:4px;">${escapeHtml(schemaJson)}</textarea>
+        <div style="position:absolute; top:8px; right:20px; display:flex; gap:8px;">
+             <button class="btn small" id="copySchema">Copy JSON</button>
+             <button class="btn small secondary" id="validateSchema">Validate</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
+// FEATURE: VISUAL OVERLAY
+// ============================================
+async function toggleOverlay() {
+  try {
+    const tab = await getActiveTab();
+    if (!tab || !isValidTabUrl(tab.url)) {
+      setStatus("Open a normal web page to use overlay.");
+      return;
+    }
+
+    state.overlayActive = !state.overlayActive;
+
+    if (state.overlayActive) {
+      // Build issues list from analysis
+      const issues = buildIssues(state.analysis);
+      const overlayData = {
+        type: "showOverlay",
+        issues: issues.map(i => ({
+          type: i.severity,
+          message: i.text,
+          selector: i.selector || null
+        })),
+        images: (state.analysis?.images?.samples || [])
+          .filter(img => !img.alt || img.alt.length < 5)
+          .map(img => ({ src: img.src, issue: "Missing or short alt text" }))
+      };
+
+      await sendMessage(tab.id, overlayData);
+      toggleOverlayBtn.textContent = "Hide Overlay";
+      toggleOverlayBtn.classList.add("active");
+      setStatus("Overlay active. Issues highlighted on page.");
+    } else {
+      await sendMessage(tab.id, { type: "hideOverlay" });
+      toggleOverlayBtn.textContent = "Overlay";
+      toggleOverlayBtn.classList.remove("active");
+      setStatus("Overlay hidden.");
+    }
+  } catch (err) {
+    setStatus(`Overlay error: ${err.message}`);
+  }
 }
 
 async function refreshAudit() {
@@ -1669,29 +1981,31 @@ async function refreshAudit() {
     }
 
     state.previous = await loadPreviousAudit(tab.url).catch(() => null);
-    const response = await sendMessage(tab.id, { type: "analyze" }).catch(() => null);
+    const response = await sendMessage(tab.id, { type: "analyze" }).catch((e) => ({ ok: false, error: e.message }));
     if (!response || !response.ok) {
-      setStatus("Unable to read page. Try refreshing the page.");
+      console.error("Analysis failed:", response);
+      setStatus("Unable to read page: " + (response?.error || "Unknown error"));
       renderEmptyPanels();
       return;
     }
 
+    state.schemaOverride = null;
     state.analysis = { ...response.data, auditedAt: new Date().toISOString() };
-    await storeAudit(tab.url, state.analysis).catch(() => {});
-    await saveRecentAudit(tab.url).catch(() => {});
-    await loadRecentAudits().catch(() => {});
+    await storeAudit(tab.url, state.analysis).catch(() => { });
+    await saveRecentAudit(tab.url).catch(() => { });
+    await loadRecentAudits().catch(() => { });
     const serpResponse = await sendMessage(tab.id, { type: "serp" }).catch(() => null);
     state.serp = serpResponse && serpResponse.ok ? serpResponse.data : null;
     setStatus("Audit complete.");
     renderAll();
   } catch (err) {
-    setStatus(`Audit error: ${err.message || "Unknown error"}`);
+    setStatus(`Audit error: ${err.message || "Unknown error"} `);
     renderEmptyPanels();
   }
 }
 
 function toCsv(rows) {
-  return rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+  return rows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
 }
 
 async function runCrawl() {
@@ -2590,13 +2904,22 @@ function attachKeywordDensityHandler() {
 }
 
 refreshBtn.addEventListener("click", refreshAudit);
+
+
+
+
 exportAuditCsvBtn.addEventListener("click", exportAuditCsv);
+if (toggleOverlayBtn) {
+  toggleOverlayBtn.addEventListener("click", toggleOverlay);
+}
 
 initTabs();
 initNavSearch();
 initHighlighting();
 initJumping();
 refreshAudit();
+
+
 
 function renderEmptyPanels() {
   const empty = `<div class="empty">Click Refresh Audit on a normal web page to load data.</div>`;

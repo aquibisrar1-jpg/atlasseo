@@ -665,16 +665,19 @@
     return nodes;
   }
 
-  function walkSchema(node, nodes) {
+  const MAX_SCHEMA_DEPTH = 20;
+
+  function walkSchema(node, nodes, depth = 0) {
     if (!node) return;
+    if (depth > MAX_SCHEMA_DEPTH) return; // Prevent stack overflow on malformed JSON
     if (Array.isArray(node)) {
-      node.forEach((item) => walkSchema(item, nodes));
+      node.forEach((item) => walkSchema(item, nodes, depth + 1));
       return;
     }
     if (typeof node !== "object") return;
 
     if (node["@graph"]) {
-      walkSchema(node["@graph"], nodes);
+      walkSchema(node["@graph"], nodes, depth + 1);
     }
 
     if (node["@type"]) {
@@ -682,21 +685,23 @@
     }
 
     Object.values(node).forEach((value) => {
-      if (typeof value === "object") walkSchema(value, nodes);
+      if (typeof value === "object") walkSchema(value, nodes, depth + 1);
     });
   }
 
   function hasPath(node, path) {
     const parts = path.split(".");
-    const traverse = (value, idx) => {
+    const MAX_TRAVERSE_DEPTH = 15;
+    const traverse = (value, idx, depth = 0) => {
+      if (depth > MAX_TRAVERSE_DEPTH) return false; // Prevent infinite recursion
       if (idx >= parts.length) return true;
       if (!value) return false;
       const key = parts[idx];
-      if (Array.isArray(value)) return value.some((entry) => traverse(entry, idx));
+      if (Array.isArray(value)) return value.some((entry) => traverse(entry, idx, depth + 1));
       if (typeof value !== "object") return false;
-      return traverse(value[key], idx + 1);
+      return traverse(value[key], idx + 1, depth + 1);
     };
-    return traverse(node, 0);
+    return traverse(node, 0, 0);
   }
 
   function extractStructuredData() {
@@ -799,6 +804,7 @@
     }
 
     return {
+      items: schemaNodes,
       types: Array.from(types),
       issues,
       warnings,
@@ -1006,15 +1012,22 @@
     rules.forEach((rule) => {
       const value = rule.value || "";
       if (!value) return;
-      let pattern = value.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
-      pattern = pattern.replace(/\*/g, ".*");
-      if (pattern.endsWith("\\$")) {
-        pattern = `${pattern.slice(0, -2)}$`;
-      }
-      const regex = new RegExp(`^${pattern}`);
-      if (!regex.test(path)) return;
-      if (!winner || value.length > winner.value.length || (value.length === winner.value.length && rule.type === "allow")) {
-        winner = rule;
+      try {
+        let pattern = value.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+        pattern = pattern.replace(/\*/g, ".*");
+        if (pattern.endsWith("\\$")) {
+          pattern = `${pattern.slice(0, -2)}$`;
+        }
+        // Limit pattern length to prevent ReDoS
+        if (pattern.length > 500) return;
+        const regex = new RegExp(`^${pattern}`);
+        if (!regex.test(path)) return;
+        if (!winner || value.length > winner.value.length || (value.length === winner.value.length && rule.type === "allow")) {
+          winner = rule;
+        }
+      } catch (err) {
+        // Skip malformed regex patterns
+        console.warn("[Atlas] Skipping malformed robots.txt pattern:", value);
       }
     });
     return winner;
@@ -1483,6 +1496,7 @@
     return map;
   }
 
+
   function analyzePage(robotsInfo = null) {
     const title = document.title || "";
     const metaDescription = getMetaContent("description");
@@ -1543,6 +1557,7 @@
     const jsRender = buildJsRenderDiff();
     const aiVisibility = buildAiVisibility(jsRender, robotsInfo);
     return {
+
       url: location.href,
       origin: location.origin,
       title,
@@ -1763,81 +1778,121 @@
   }
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (!message || !message.type) return;
-    if (message.type === "analyze") {
-      (async () => {
-        const robotsInfo = await getRobotsInfo();
-        const attempt = (triesLeft) => {
-          const data = analyzePage(robotsInfo);
-          const hasSchema = data.structuredData && data.structuredData.itemsCount > 0;
-          if (!hasSchema && triesLeft > 0) {
-            setTimeout(() => attempt(triesLeft - 1), 500);
-            return;
+    if (!message || !message.type) return false;
+
+    switch (message.type) {
+      case "analyze": {
+        (async () => {
+          try {
+            const robotsInfo = await getRobotsInfo();
+            const attempt = (triesLeft) => {
+              const data = analyzePage(robotsInfo);
+              const hasSchema = data.structuredData && data.structuredData.itemsCount > 0;
+              if (!hasSchema && triesLeft > 0) {
+                setTimeout(() => attempt(triesLeft - 1), 500);
+                return;
+              }
+              sendResponse({ ok: true, data });
+            };
+            attempt(1);
+          } catch (err) {
+            sendResponse({ ok: false, error: err?.message || String(err) });
           }
-          sendResponse({ ok: true, data });
-        };
-        attempt(1);
-      })();
-      return true;
-    }
-    if (message.type === "serp") {
-      sendResponse({ ok: true, data: parseSerp() });
-    }
-    if (message.type === "keywordDensity") {
-      const keywords = message.keywords || [];
-      const bodyText = document.body ? document.body.innerText || "" : "";
-      const data = computeKeywordDensity(bodyText, keywords);
-      sendResponse({ ok: true, data });
-    }
-    if (message.type === "highlight") {
-      ensureHighlightStyles();
-      clearHighlights();
-      waitForElements(message)
-        .then((elements) => {
-          elements.forEach((el) => {
-            ensureVisible(el);
-            el.classList.add("atlas-highlight");
-          });
-          sendResponse({ ok: true, found: elements.length });
-        })
-        .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
-      return true;
-    }
-    if (message.type === "scrollTo") {
-      ensureHighlightStyles();
-      clearHighlights();
-      waitForElements(message)
-        .then((elements) => {
-          const target = elements[0];
-          if (target) {
-            ensureVisible(target);
-            target.classList.add("atlas-highlight");
-            target.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-          sendResponse({ ok: true, found: target ? 1 : 0 });
-        })
-        .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
-      return true;
-    }
-    if (message.type === "clearHighlight") {
-      clearHighlights();
-      sendResponse({ ok: true });
-    }
-    if (message.type === "aiHighlight") {
-      highlightAiSections(message.sections || []);
-      sendResponse({ ok: true });
-    }
-    if (message.type === "aiClearHighlight") {
-      clearAiHighlights();
-      sendResponse({ ok: true });
-    }
-    if (message.type === "aiHoverStart") {
-      setAiHoverState(true, message.sections || [], message.siteBlocked, message.noImageAi);
-      sendResponse({ ok: true });
-    }
-    if (message.type === "aiHoverStop") {
-      setAiHoverState(false, []);
-      sendResponse({ ok: true });
+        })();
+        return true; // Keep channel open for async response
+      }
+
+      case "serp": {
+        sendResponse({ ok: true, data: parseSerp() });
+        return false;
+      }
+
+      case "keywordDensity": {
+        const keywords = message.keywords || [];
+        const bodyText = document.body ? document.body.innerText || "" : "";
+        const data = computeKeywordDensity(bodyText, keywords);
+        sendResponse({ ok: true, data });
+        return false;
+      }
+
+      case "highlight": {
+        ensureHighlightStyles();
+        clearHighlights();
+        waitForElements(message)
+          .then((elements) => {
+            elements.forEach((el) => {
+              ensureVisible(el);
+              el.classList.add("atlas-highlight");
+            });
+            sendResponse({ ok: true, found: elements.length });
+          })
+          .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+        return true; // Keep channel open for async response
+      }
+
+      case "scrollTo": {
+        ensureHighlightStyles();
+        clearHighlights();
+        waitForElements(message)
+          .then((elements) => {
+            const target = elements[0];
+            if (target) {
+              ensureVisible(target);
+              target.classList.add("atlas-highlight");
+              target.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+            sendResponse({ ok: true, found: target ? 1 : 0 });
+          })
+          .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }));
+        return true; // Keep channel open for async response
+      }
+
+      case "clearHighlight": {
+        clearHighlights();
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      case "aiHighlight": {
+        highlightAiSections(message.sections || []);
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      case "aiClearHighlight": {
+        clearAiHighlights();
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      case "aiHoverStart": {
+        setAiHoverState(true, message.sections || [], message.siteBlocked, message.noImageAi);
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      case "aiHoverStop": {
+        setAiHoverState(false, []);
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      case "showOverlay": {
+        ensureOverlayStyles();
+        clearOverlay();
+        showSeoOverlay(message.issues || [], message.images || []);
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      case "hideOverlay": {
+        clearOverlay();
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      default:
+        return false;
     }
   });
 
@@ -2055,5 +2110,94 @@
     const visibleMatch = imgs.find((img) => isElementVisible(img) && isMatch(img));
     if (visibleMatch) return visibleMatch;
     return imgs.find((img) => isMatch(img)) || null;
+  }
+
+  // ============================================
+  // VISUAL OVERLAY FUNCTIONS
+  // ============================================
+  let overlayStylesInjected = false;
+
+  function ensureOverlayStyles() {
+    if (overlayStylesInjected) return;
+    overlayStylesInjected = true;
+    const style = document.createElement("style");
+    style.setAttribute("data-atlas-overlay", "true");
+    style.textContent = `
+      .atlas-overlay-error {
+        outline: 3px solid #ef4444 !important;
+        outline-offset: 2px !important;
+        position: relative !important;
+      }
+      .atlas-overlay-warn {
+        outline: 3px solid #f59e0b !important;
+        outline-offset: 2px !important;
+        position: relative !important;
+      }
+      .atlas-overlay-tooltip {
+        position: absolute !important;
+        background: #1f2937 !important;
+        color: #fff !important;
+        padding: 6px 10px !important;
+        border-radius: 6px !important;
+        font-size: 12px !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+        z-index: 999999 !important;
+        pointer-events: none !important;
+        white-space: nowrap !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+        top: -32px !important;
+        left: 0 !important;
+      }
+      .atlas-overlay-banner {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+        color: #fff !important;
+        padding: 12px 20px !important;
+        font-size: 14px !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+        z-index: 999999 !important;
+        text-align: center !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function clearOverlay() {
+    // Remove all overlay elements
+    document.querySelectorAll(".atlas-overlay-error, .atlas-overlay-warn").forEach(el => {
+      el.classList.remove("atlas-overlay-error", "atlas-overlay-warn");
+    });
+    document.querySelectorAll(".atlas-overlay-tooltip, .atlas-overlay-banner").forEach(el => {
+      el.remove();
+    });
+  }
+
+  function showSeoOverlay(issues, images) {
+    // Show top-level issues as banner
+    const criticalIssues = issues.filter(i => i.type === "error" || i.type === "critical");
+    if (criticalIssues.length) {
+      const banner = document.createElement("div");
+      banner.className = "atlas-overlay-banner";
+      banner.textContent = `Atlas SEO: ${criticalIssues.length} issue(s) found - ${criticalIssues.map(i => i.message).slice(0, 2).join(", ")}`;
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+
+    // Highlight images with missing/short alt
+    images.forEach(img => {
+      if (!img.src) return;
+      const imgEl = findImageBySrc(img.src);
+      if (imgEl && isElementVisible(imgEl)) {
+        imgEl.classList.add("atlas-overlay-error");
+        imgEl.style.position = "relative";
+        const tooltip = document.createElement("div");
+        tooltip.className = "atlas-overlay-tooltip";
+        tooltip.textContent = img.issue || "Missing alt text";
+        imgEl.appendChild(tooltip);
+      }
+    });
   }
 })();
