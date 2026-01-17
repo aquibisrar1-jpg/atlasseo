@@ -56,6 +56,48 @@ const state = {
   mediaFilter: null
 };
 
+const metricTooltips = {
+  // Summary
+  "Indexable": "Whether the page is allowed to be indexed by search engines.\nGood: Yes (for public pages)",
+  "Title Length": "Length of the <title> tag.\nGood: 30-60 characters",
+  "Description Length": "Length of the meta description.\nGood: 120-160 characters",
+  "Word Count": "Total word count of the main content.\nImpact: Higher count often correlates with depth.",
+  "Text/HTML Ratio": "Percentage of text content relative to HTML code.\nGood: >10%",
+  // Performance
+  "TTFB": "Time to First Byte - server response time.\nGood: <800ms",
+  "FCP": "First Contentful Paint - when content first appears.\nGood: <1.8s",
+  "LCP": "Largest Contentful Paint - main content load time.\nGood: <2.5s",
+  "CLS": "Cumulative Layout Shift - visual stability.\nGood: <0.1",
+  "INP": "Interaction to Next Paint - responsiveness.\nGood: <200ms",
+  "FID": "First Input Delay - responsiveness (Legacy).\nGood: <100ms",
+  // JS SEO
+  "Dependency Score": "Rough estimate of JS weight based on libraries found.\nLower is better.",
+  "JS Content %": "Percentage of content rendered by JavaScript vs statically served.\nHigh % means reliance on JS.",
+  "Text Added": "Characters added to the DOM after initial load.",
+  "Links Added": "Links injected by JavaScript.",
+  // Content
+  "Reading Ease": "Flesch Reading Ease score (0-100).\nHigher is easier to read.",
+  "Grade Level": "Flesch-Kincaid Grade Level.\nGood: 6-8 for general audience.",
+  "Sentences": "Total sentence count.",
+  "Headings Added": "Headings (H1-H6) injected by JavaScript.",
+  "Robots.txt": "Availability of the robots.txt file.",
+  "Meta Robots": "Meta tag directives (e.g., noindex, nofollow).",
+  "NoAI": "Whether standard AI bot blocking directives are detected.",
+  "NoImageAI": "Whether AI image generation bot directives are detected.",
+  "JS Text Share": "Percentage of text content that requires JavaScript to render."
+};
+
+const ui = {
+  metric: (label, value, tooltipKey = null, extraClass = "") => {
+    const tooltipAttr = tooltipKey && metricTooltips[tooltipKey]
+      ? `data-tooltip="${escapeHtml(metricTooltips[tooltipKey])}"`
+      : "";
+    return `<div class="metric ${extraClass}" ${tooltipAttr}>
+        <span>${escapeHtml(label)}</span>${value}
+    </div>`;
+  }
+};
+
 function setStatus(text, isLoading = false) {
   // Auto-detect states from common keywords
   const loadingKeywords = ["running", "analyzing", "crawling", "loading", "processing"];
@@ -903,26 +945,26 @@ function renderOverview(analysis) {
       <h3>Page Summary</h3>
       <div class="metric-grid">
         <div class="metric"><span>URL</span>${analysis.url || "-"}</div>
-        <div class="metric"><span>Indexable</span>${metaRobots.toLowerCase().includes("noindex") ? "No" : "Likely"}</div>
-        <div class="metric"><span>Title Length</span>${title.length}</div>
-        <div class="metric"><span>Description Length</span>${metaDesc.length}</div>
-        <div class="metric"><span>Word Count</span>${analysis.wordCount ?? 0}</div>
-        <div class="metric"><span>Text/HTML Ratio</span>${analysis.textRatio ?? "-"}</div>
+        ${ui.metric("Indexable", metaRobots.toLowerCase().includes("noindex") ? "No" : "Likely", "Indexable")}
+        ${ui.metric("Title Length", title.length, "Title Length")}
+        ${ui.metric("Description Length", metaDesc.length, "Description Length")}
+        ${ui.metric("Word Count", analysis.wordCount ?? 0, "Word Count")}
+        ${ui.metric("Text/HTML Ratio", analysis.textRatio ?? "-", "Text/HTML Ratio")}
       </div>
       <div class="footer-note">Recommended: title 50–60 chars, description 120–160, word count 300+, text/HTML ratio > 0.1.</div>
     </div>
     <div class="card">
       <h3>Performance (current page)</h3>
       <div class="metric-grid">
-        <div class="metric ${pickSeverity(perf.ttfb, 800, 1200)}"><span>TTFB</span>${formatMs(perf.ttfb)}</div>
-        <div class="metric ${pickSeverity(perf.ttfbMs, 800, 1200)}"><span>TTFB (net)</span>${formatMs(perf.ttfbMs)}</div>
-        <div class="metric ${pickSeverity(perf.fcp, 1800, 3000)}"><span>FCP</span>${formatMs(perf.fcp)}</div>
-        <div class="metric ${pickSeverity(perf.lcp, 2500, 4000)}"><span>LCP</span>${formatMs(perf.lcp)}</div>
-        <div class="metric ${pickSeverity(perf.cls, 0.1, 0.25)}"><span>CLS</span>${perf.cls ?? "-"}</div>
-        <div class="metric ${pickSeverity(perf.inp, 200, 500)}"><span>INP</span>${formatMs(perf.inp)}</div>
-        <div class="metric ${pickSeverity(perf.fid, 100, 300)}"><span>FID</span>${formatMs(perf.fid)}</div>
-        <div class="metric"><span>DOMContentLoaded</span>${formatMs(perf.domContentLoaded)}</div>
-        <div class="metric"><span>Load</span>${formatMs(perf.load)}</div>
+        ${ui.metric("TTFB", formatMs(perf.ttfb), "TTFB", pickSeverity(perf.ttfb, 800, 1200))}
+        ${ui.metric("TTFB (net)", formatMs(perf.ttfbMs), "TTFB", pickSeverity(perf.ttfbMs, 800, 1200))}
+        ${ui.metric("FCP", formatMs(perf.fcp), "FCP", pickSeverity(perf.fcp, 1800, 3000))}
+        ${ui.metric("LCP", formatMs(perf.lcp), "LCP", pickSeverity(perf.lcp, 2500, 4000))}
+        ${ui.metric("CLS", perf.cls ?? "-", "CLS", pickSeverity(perf.cls, 0.1, 0.25))}
+        ${ui.metric("INP", formatMs(perf.inp), "INP", pickSeverity(perf.inp, 200, 500))}
+        ${ui.metric("FID", formatMs(perf.fid), "FID", pickSeverity(perf.fid, 100, 300))}
+        ${ui.metric("DOMContentLoaded", formatMs(perf.domContentLoaded))}
+        ${ui.metric("Load", formatMs(perf.load))}
       </div>
       <p class="footer-note">Performance metrics are sampled from the current page load.</p>
       <div class="footer-note">Good ranges: TTFB < 800ms, FCP < 1.8s, LCP < 2.5s, CLS < 0.1, INP < 200ms, FID < 100ms.</div>
@@ -1014,10 +1056,10 @@ function renderContent(analysis) {
     <div class="card">
       <h3>Readability & Quality</h3>
       <div class="metric-grid">
-        <div class="metric"><span>Words</span>${analysis.wordCount || 0}</div>
-        <div class="metric"><span>Reading Ease</span>${readability.fleschReadingEase ?? "-"}</div>
-        <div class="metric"><span>Grade Level</span>${readability.fleschKincaidGrade ?? "-"}</div>
-        <div class="metric"><span>Sentences</span>${(analysis.html?.text || "").split(/\.\s+/).length || "-"}</div>
+        ${ui.metric("Words", analysis.wordCount || 0, "Word Count")}
+        ${ui.metric("Reading Ease", readability.fleschReadingEase ?? "-", "Reading Ease")}
+        ${ui.metric("Grade Level", readability.fleschKincaidGrade ?? "-", "Grade Level")}
+        ${ui.metric("Sentences", (analysis.html?.text || "").split(/\.\s+/).length || "-", "Sentences")}
       </div>
     </div>
 
@@ -1041,7 +1083,7 @@ function renderContent(analysis) {
   attachKeywordDensityHandler();
 }
 
-function renderJSSEO(analysis) {
+function renderJsSeo(analysis) {
   if (!panelMap.jsseo) return;
   const jsRender = analysis.jsRender;
   const jsAddedHeadings = jsRender?.added?.headings || [];
@@ -1065,11 +1107,11 @@ function renderJSSEO(analysis) {
       <h3>JS Dependency Score</h3>
       ${jsRender ? `
         <div class="metric-grid">
-          <div class="metric"><span>Dependency</span>${dependencyScore}%</div>
-          <div class="metric"><span>JS Content</span>${jsRender.jsTextShare}%</div>
-          <div class="metric"><span>Text Added</span>${jsRender.textAdded}</div>
-          <div class="metric"><span>Links Added</span>${jsAddedLinks.length}</div>
-          <div class="metric"><span>Headings Added</span>${jsAddedHeadings.length}</div>
+          ${ui.metric("Dependency", dependencyScore + "%", "Dependency Score")}
+          ${ui.metric("JS Content", jsRender.jsTextShare + "%", "JS Content %")}
+          ${ui.metric("Text Added", jsRender.textAdded, "Text Added")}
+          ${ui.metric("Links Added", jsAddedLinks.length, "Links Added")}
+          ${ui.metric("Headings Added", jsAddedHeadings.length, "Headings Added")}
         </div>
         <div class="footer-note">Dependency Score > 25% suggests heavy reliance on Client-Side Rendering (CSR).</div>
         ${baseline && rendered ? `<table class="table">
@@ -1167,12 +1209,12 @@ function renderAiVisibility(analysis) {
     <div class="card">
       <h3>AI Visibility (ChatGPT / Perplexity / Gemini)</h3>
       <div class="metric-grid">
-        <div class="metric"><span>Robots.txt</span>${aiRobots.status === "ok" ? "Fetched" : "Unavailable"}</div>
-        <div class="metric"><span>Meta Robots</span>${aiMeta.robots || "-"}</div>
-        <div class="metric"><span>Noindex</span>${aiFlags.noindex ? "Yes" : "No"}</div>
-        <div class="metric"><span>NoAI</span>${aiFlags.noai ? "Yes" : "No"}</div>
-        <div class="metric"><span>NoImageAI</span>${aiFlags.noimageai ? "Yes" : "No"}</div>
-        <div class="metric"><span>JS Text Share</span>${aiVisibility.jsTextShare ?? "-"}%</div>
+        ${ui.metric("Robots.txt", aiRobots.status === "ok" ? "Fetched" : "Unavailable", "Robots.txt")}
+        ${ui.metric("Meta Robots", aiMeta.robots || "-", "Meta Robots")}
+        ${ui.metric("Noindex", aiFlags.noindex ? "Yes" : "No", "Meta Robots")}
+        ${ui.metric("NoAI", aiFlags.noai ? "Yes" : "No", "NoAI")}
+        ${ui.metric("NoImageAI", aiFlags.noimageai ? "Yes" : "No", "NoImageAI")}
+        ${ui.metric("JS Text Share", (aiVisibility.jsTextShare ?? "-") + "%", "JS Text Share")}
       </div>
       ${visibleSections.length ? `<div class="footer-note">Visible to AI: ${visibleSections.join(", ")}</div>` : `<div class="footer-note">Visible to AI: none detected</div>`}
       ${invisibleSections.length ? `<div class="footer-note">Not visible to AI: ${invisibleSections.join(", ")}</div>` : ""}
@@ -1828,10 +1870,10 @@ function renderAll() {
   safeRender("renderMedia", () => renderMedia(state.analysis));
   safeRender("renderSchema", () => renderSchema(state.analysis));
   safeRender("renderTech", () => renderTech(state.analysis));
-  safeRender("renderJSSEO", () => renderJSSEO(state.analysis));
+  safeRender("renderJsSeo", () => renderJsSeo(state.analysis));
   safeRender("renderAiVisibility", () => renderAiVisibility(state.analysis));
   safeRender("renderSerp", () => renderSerp(state.serp));
-  safeRender("renderRegex", () => renderRegex());
+  safeRender("renderRegex", () => renderRegex(state.analysis));
 }
 
 async function getActiveTab() {
@@ -2944,6 +2986,8 @@ if (toggleOverlayBtn) {
 
 initTheme();
 initTabs();
+
+
 
 function initTheme() {
   const toggleBtn = document.getElementById("themeToggle");
