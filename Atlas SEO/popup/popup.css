@@ -1624,3 +1624,352 @@ button.primary:hover::after {
 .log-list li:last-child {
   border-bottom: none;
 }
+
+/* ==========================================
+   COLLAPSIBLE ADVANCED SECTION
+   ========================================== */
+
+.nav-section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--border) 50%, transparent 100%);
+  margin: 10px 0;
+}
+
+.nav-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, var(--accent-soft) 0%, rgba(124, 92, 250, 0.08) 100%);
+  border: 1px solid rgba(124, 92, 250, 0.2);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.nav-section-toggle:hover {
+  background: linear-gradient(135deg, var(--accent-lighter) 0%, var(--accent-soft) 100%);
+  border-color: rgba(124, 92, 250, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 92, 250, 0.15);
+}
+
+.toggle-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.nav-section-toggle[aria-expanded="true"] .toggle-chevron {
+  transform: rotate(90deg);
+}
+
+.section-badge {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.nav-section-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease, opacity 0.25s ease, margin 0.3s ease;
+  opacity: 0;
+  margin-top: 0;
+}
+
+.nav-section-content.expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  margin-top: 6px;
+}
+
+.nav-section-content > .tab {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.nav-section-content.expanded > .tab {
+  min-height: auto;
+  margin-bottom: 6px;
+}
+
+.nav-section-content > .tab:last-child {
+  margin-bottom: 0;
+}
+
+/* ==========================================
+   TOOLTIPS FOR TECHNICAL METRICS
+   ========================================== */
+
+.metric[data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+
+.metric[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--ink);
+  color: var(--bg);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+  width: max-content;
+  max-width: 220px;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  text-align: center;
+}
+
+.metric[data-tooltip]::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--ink);
+  z-index: 1001;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s;
+}
+
+.metric[data-tooltip]:hover::after,
+.metric[data-tooltip]:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.metric[data-tooltip]:hover::before {
+  transform: translateX(-50%);
+}
+
+/* Tooltip indicator icon */
+.metric[data-tooltip] span::after {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 4px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.metric[data-tooltip]:hover span::after {
+  opacity: 1;
+}
+
+/* Dark mode tooltip adjustments */
+body.dark .metric[data-tooltip]::after {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+
+body.dark .metric[data-tooltip]::before {
+  border-top-color: var(--panel);
+}
+
+/* ==========================================
+   RESPONSIVE WIDTH FOR SMALLER POPUPS
+   ========================================== */
+
+/* Base responsive adjustments */
+@media (max-width: 780px) {
+  body {
+    width: 100%;
+    min-width: 480px;
+    max-width: 780px;
+    padding: 16px;
+  }
+
+  .shell {
+    grid-template-columns: 160px 1fr;
+    gap: 10px;
+  }
+
+  .app-header {
+    padding: 16px 18px;
+    gap: 12px;
+  }
+
+  .logo-wrap {
+    width: 48px;
+    height: 48px;
+    padding: 8px;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .metric {
+    padding: 12px 14px;
+  }
+
+  .card {
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+}
+
+/* Compact mode for narrower widths */
+@media (max-width: 620px) {
+  body {
+    min-width: 400px;
+    padding: 12px;
+  }
+
+  .shell {
+    grid-template-columns: 140px 1fr;
+    gap: 8px;
+  }
+
+  .nav {
+    padding: 10px;
+  }
+
+  .tab {
+    padding: 10px 12px;
+    font-size: 11px;
+    gap: 8px;
+  }
+
+  .tab-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .tab-icon svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-header {
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+  }
+
+  .header-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+
+  .toolbar {
+    padding: 12px 14px;
+  }
+
+  button {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
+  .nav-section-toggle {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+
+  .section-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+}
+
+/* Ultra-compact for minimum width */
+@media (max-width: 500px) {
+  body {
+    min-width: 360px;
+  }
+
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .nav {
+    position: relative;
+    top: 0;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .tab {
+    flex-direction: column;
+    padding: 8px 6px;
+    font-size: 9px;
+    text-align: center;
+    gap: 4px;
+  }
+
+  .nav-section-divider {
+    grid-column: 1 / -1;
+    margin: 6px 0;
+  }
+
+  .nav-section-toggle {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .nav-section-content {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+
+  .nav-section-content.expanded {
+    margin-top: 4px;
+  }
+
+  .nav-section-content > .tab {
+    margin-bottom: 0 !important;
+  }
+}

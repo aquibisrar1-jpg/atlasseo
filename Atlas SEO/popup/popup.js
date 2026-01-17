@@ -903,26 +903,26 @@ function renderOverview(analysis) {
       <h3>Page Summary</h3>
       <div class="metric-grid">
         <div class="metric"><span>URL</span>${analysis.url || "-"}</div>
-        <div class="metric"><span>Indexable</span>${metaRobots.toLowerCase().includes("noindex") ? "No" : "Likely"}</div>
-        <div class="metric"><span>Title Length</span>${title.length}</div>
-        <div class="metric"><span>Description Length</span>${metaDesc.length}</div>
-        <div class="metric"><span>Word Count</span>${analysis.wordCount ?? 0}</div>
-        <div class="metric"><span>Text/HTML Ratio</span>${analysis.textRatio ?? "-"}</div>
+        <div class="metric" data-tooltip="Whether search engines can index this page. 'No' if noindex is set."><span>Indexable</span>${metaRobots.toLowerCase().includes("noindex") ? "No" : "Likely"}</div>
+        <div class="metric" data-tooltip="Title tag length. Optimal: 50-60 characters to avoid truncation in SERPs."><span>Title Length</span>${title.length}</div>
+        <div class="metric" data-tooltip="Meta description length. Optimal: 120-160 characters for full display in search results."><span>Description Length</span>${metaDesc.length}</div>
+        <div class="metric" data-tooltip="Total word count of visible text. Pages under 300 words may be considered thin content."><span>Word Count</span>${analysis.wordCount ?? 0}</div>
+        <div class="metric" data-tooltip="Ratio of text content to HTML code. Higher is better. Target: > 0.1 (10%)."><span>Text/HTML Ratio</span>${analysis.textRatio ?? "-"}</div>
       </div>
-      <div class="footer-note">Recommended: title 50–60 chars, description 120–160, word count 300+, text/HTML ratio > 0.1.</div>
+      <div class="footer-note">Recommended: title 50-60 chars, description 120-160, word count 300+, text/HTML ratio > 0.1.</div>
     </div>
     <div class="card">
       <h3>Performance (current page)</h3>
       <div class="metric-grid">
-        <div class="metric ${pickSeverity(perf.ttfb, 800, 1200)}"><span>TTFB</span>${formatMs(perf.ttfb)}</div>
-        <div class="metric ${pickSeverity(perf.ttfbMs, 800, 1200)}"><span>TTFB (net)</span>${formatMs(perf.ttfbMs)}</div>
-        <div class="metric ${pickSeverity(perf.fcp, 1800, 3000)}"><span>FCP</span>${formatMs(perf.fcp)}</div>
-        <div class="metric ${pickSeverity(perf.lcp, 2500, 4000)}"><span>LCP</span>${formatMs(perf.lcp)}</div>
-        <div class="metric ${pickSeverity(perf.cls, 0.1, 0.25)}"><span>CLS</span>${perf.cls ?? "-"}</div>
-        <div class="metric ${pickSeverity(perf.inp, 200, 500)}"><span>INP</span>${formatMs(perf.inp)}</div>
-        <div class="metric ${pickSeverity(perf.fid, 100, 300)}"><span>FID</span>${formatMs(perf.fid)}</div>
-        <div class="metric"><span>DOMContentLoaded</span>${formatMs(perf.domContentLoaded)}</div>
-        <div class="metric"><span>Load</span>${formatMs(perf.load)}</div>
+        <div class="metric ${pickSeverity(perf.ttfb, 800, 1200)}" data-tooltip="Time to First Byte: How long until the browser receives the first byte from the server. Good: < 800ms"><span>TTFB</span>${formatMs(perf.ttfb)}</div>
+        <div class="metric ${pickSeverity(perf.ttfbMs, 800, 1200)}" data-tooltip="Network TTFB: Server response time excluding DNS and connection setup. Good: < 800ms"><span>TTFB (net)</span>${formatMs(perf.ttfbMs)}</div>
+        <div class="metric ${pickSeverity(perf.fcp, 1800, 3000)}" data-tooltip="First Contentful Paint: Time until first text or image is painted. Good: < 1.8s"><span>FCP</span>${formatMs(perf.fcp)}</div>
+        <div class="metric ${pickSeverity(perf.lcp, 2500, 4000)}" data-tooltip="Largest Contentful Paint: Time until the largest content element is visible. Core Web Vital. Good: < 2.5s"><span>LCP</span>${formatMs(perf.lcp)}</div>
+        <div class="metric ${pickSeverity(perf.cls, 0.1, 0.25)}" data-tooltip="Cumulative Layout Shift: Measures visual stability. Lower is better. Core Web Vital. Good: < 0.1"><span>CLS</span>${perf.cls ?? "-"}</div>
+        <div class="metric ${pickSeverity(perf.inp, 200, 500)}" data-tooltip="Interaction to Next Paint: Responsiveness to user interactions. Core Web Vital. Good: < 200ms"><span>INP</span>${formatMs(perf.inp)}</div>
+        <div class="metric ${pickSeverity(perf.fid, 100, 300)}" data-tooltip="First Input Delay: Time from first interaction to browser response. Good: < 100ms"><span>FID</span>${formatMs(perf.fid)}</div>
+        <div class="metric" data-tooltip="Time until HTML is fully parsed and DOM is ready. Excludes stylesheets/images."><span>DOMContentLoaded</span>${formatMs(perf.domContentLoaded)}</div>
+        <div class="metric" data-tooltip="Time until page and all resources (images, scripts) are fully loaded."><span>Load</span>${formatMs(perf.load)}</div>
       </div>
       <p class="footer-note">Performance metrics are sampled from the current page load.</p>
       <div class="footer-note">Good ranges: TTFB < 800ms, FCP < 1.8s, LCP < 2.5s, CLS < 0.1, INP < 200ms, FID < 100ms.</div>
@@ -1014,10 +1014,10 @@ function renderContent(analysis) {
     <div class="card">
       <h3>Readability & Quality</h3>
       <div class="metric-grid">
-        <div class="metric"><span>Words</span>${analysis.wordCount || 0}</div>
-        <div class="metric"><span>Reading Ease</span>${readability.fleschReadingEase ?? "-"}</div>
-        <div class="metric"><span>Grade Level</span>${readability.fleschKincaidGrade ?? "-"}</div>
-        <div class="metric"><span>Sentences</span>${(analysis.html?.text || "").split(/\.\s+/).length || "-"}</div>
+        <div class="metric" data-tooltip="Total word count. Aim for 300+ words minimum for SEO value."><span>Words</span>${analysis.wordCount || 0}</div>
+        <div class="metric" data-tooltip="Flesch Reading Ease (0-100). Higher = easier to read. 60-70 is ideal for general audiences."><span>Reading Ease</span>${readability.fleschReadingEase ?? "-"}</div>
+        <div class="metric" data-tooltip="Flesch-Kincaid Grade Level. US school grade needed to understand text. 7-8 is ideal for web content."><span>Grade Level</span>${readability.fleschKincaidGrade ?? "-"}</div>
+        <div class="metric" data-tooltip="Approximate sentence count based on periods followed by spaces."><span>Sentences</span>${(analysis.html?.text || "").split(/\.\s+/).length || "-"}</div>
       </div>
     </div>
 
@@ -1065,11 +1065,11 @@ function renderJSSEO(analysis) {
       <h3>JS Dependency Score</h3>
       ${jsRender ? `
         <div class="metric-grid">
-          <div class="metric"><span>Dependency</span>${dependencyScore}%</div>
-          <div class="metric"><span>JS Content</span>${jsRender.jsTextShare}%</div>
-          <div class="metric"><span>Text Added</span>${jsRender.textAdded}</div>
-          <div class="metric"><span>Links Added</span>${jsAddedLinks.length}</div>
-          <div class="metric"><span>Headings Added</span>${jsAddedHeadings.length}</div>
+          <div class="metric" data-tooltip="Overall JavaScript dependency. Score > 25% indicates heavy CSR reliance, which may impact SEO crawling."><span>Dependency</span>${dependencyScore}%</div>
+          <div class="metric" data-tooltip="Percentage of visible text that only appears after JavaScript execution."><span>JS Content</span>${jsRender.jsTextShare}%</div>
+          <div class="metric" data-tooltip="Characters of text content added by JavaScript after initial HTML load."><span>Text Added</span>${jsRender.textAdded}</div>
+          <div class="metric" data-tooltip="Internal links that only exist after JavaScript runs. Search engines may miss these."><span>Links Added</span>${jsAddedLinks.length}</div>
+          <div class="metric" data-tooltip="Headings (H1-H6) that only appear after JavaScript execution."><span>Headings Added</span>${jsAddedHeadings.length}</div>
         </div>
         <div class="footer-note">Dependency Score > 25% suggests heavy reliance on Client-Side Rendering (CSR).</div>
         ${baseline && rendered ? `<table class="table">
@@ -2718,6 +2718,51 @@ function initNavSearch() {
       const match = !query || label.includes(query);
       tab.style.display = match ? "" : "none";
     });
+    // Show advanced section if search matches any advanced tab
+    const advancedSection = document.getElementById("advancedSection");
+    const advancedToggle = document.getElementById("advancedToggle");
+    if (advancedSection && advancedToggle && query) {
+      const advancedTabs = advancedSection.querySelectorAll(".tab");
+      const hasVisibleAdvanced = Array.from(advancedTabs).some((t) => t.style.display !== "none");
+      if (hasVisibleAdvanced) {
+        advancedSection.classList.add("expanded");
+        advancedToggle.setAttribute("aria-expanded", "true");
+      }
+    }
+  });
+}
+
+function initAdvancedSection() {
+  const toggle = document.getElementById("advancedToggle");
+  const section = document.getElementById("advancedSection");
+  if (!toggle || !section) return;
+
+  // Load saved state from storage
+  chrome.storage.local.get(["atlas:advancedExpanded"], (result) => {
+    const isExpanded = result["atlas:advancedExpanded"] === true;
+    if (isExpanded) {
+      section.classList.add("expanded");
+      toggle.setAttribute("aria-expanded", "true");
+    }
+  });
+
+  toggle.addEventListener("click", () => {
+    const isExpanded = section.classList.toggle("expanded");
+    toggle.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+    // Save state
+    chrome.storage.local.set({ "atlas:advancedExpanded": isExpanded });
+  });
+
+  // Auto-expand when an advanced tab becomes active
+  const advancedTabs = section.querySelectorAll(".tab");
+  advancedTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      if (!section.classList.contains("expanded")) {
+        section.classList.add("expanded");
+        toggle.setAttribute("aria-expanded", "true");
+        chrome.storage.local.set({ "atlas:advancedExpanded": true });
+      }
+    });
   });
 }
 
@@ -2944,6 +2989,7 @@ if (toggleOverlayBtn) {
 
 initTheme();
 initTabs();
+initAdvancedSection();
 
 function initTheme() {
   const toggleBtn = document.getElementById("themeToggle");

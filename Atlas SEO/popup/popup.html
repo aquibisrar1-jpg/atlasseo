@@ -172,26 +172,6 @@
           </span>
           Tech
         </button>
-        <button class="tab" data-tab="jsseo" title="JS SEO">
-          <span class="tab-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-            </svg>
-          </span>
-          JS SEO
-        </button>
-        <button class="tab" data-tab="ai" title="AI Visibility">
-          <span class="tab-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
-              <path d="M12 8v8" />
-              <path d="M8 12h8" />
-            </svg>
-          </span>
-          AI Visibility
-        </button>
         <button class="tab" data-tab="serp" title="SERP">
           <span class="tab-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -202,18 +182,49 @@
           </span>
           SERP
         </button>
-        <button class="tab" data-tab="regex" title="Regex">
-          <span class="tab-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path d="M4 6h16" />
-              <path d="M4 12h16" />
-              <path d="M4 18h16" />
-              <circle cx="10" cy="12" r="2" />
-            </svg>
-          </span>
-          Regex
+        <!-- Advanced Section (Collapsible) -->
+        <div class="nav-section-divider"></div>
+        <button class="nav-section-toggle" id="advancedToggle" aria-expanded="false">
+          <svg class="toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+          Advanced
+          <span class="section-badge">3</span>
         </button>
+        <div class="nav-section-content" id="advancedSection">
+          <button class="tab" data-tab="jsseo" title="JS SEO - Analyze client-side rendering impact">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+            </span>
+            JS SEO
+          </button>
+          <button class="tab" data-tab="ai" title="AI Visibility - Check AI crawler access">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
+                <path d="M12 8v8" />
+                <path d="M8 12h8" />
+              </svg>
+            </span>
+            AI Visibility
+          </button>
+          <button class="tab" data-tab="regex" title="Regex - Build RE2-safe patterns for GSC/GA4">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M4 6h16" />
+                <path d="M4 12h16" />
+                <path d="M4 18h16" />
+                <circle cx="10" cy="12" r="2" />
+              </svg>
+            </span>
+            Regex
+          </button>
+        </div>
       </nav>
     </aside>
     <main class="content">
