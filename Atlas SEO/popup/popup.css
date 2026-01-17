@@ -41,6 +41,27 @@
   --transition-slow: 0.3s ease;
 }
 
+body.dark {
+  color-scheme: dark;
+  --bg: #111827;
+  --panel: #1f2937;
+  --panel-muted: #374151;
+  --panel-soft: #1f2937;
+  --glass: #1f2937;
+  --glass-strong: #374151;
+  --glass-edge: #4b5563;
+  --glass-highlight: rgba(31, 41, 55, 0.85);
+  --ink: #f9fafb;
+  --ink-secondary: #d1d5db;
+  --muted: #9ca3af;
+  --border: #374151;
+  --border-light: #4b5563;
+  --accent-soft: #2e1065;
+  --accent-lighter: #4c1d95;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -580,16 +601,38 @@ button.ghost:hover {
 }
 
 .table-scroll {
-  max-height: 260px;
+  max-height: 400px;
   overflow: auto;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg);
+  margin-top: 10px;
 }
 
 .media-table {
   table-layout: fixed;
+  width: 100%;
+}
+
+.media-table td {
+  white-space: normal;
+  /* Allow wrapping */
+  vertical-align: top;
+  padding: 8px 12px;
+}
+
+/* Source column formatting */
+.media-table td:nth-child(5) {
+  word-break: break-word;
+  /* Break long words if needed */
+  overflow-wrap: anywhere;
+  /* Ensure URLs break */
+  font-family: inherit;
+  /* Keep font consistent */
 }
 
 .media-table col.col-section {
-  width: 96px;
+  width: 90px;
 }
 
 .media-table col.col-dims {
@@ -1076,6 +1119,14 @@ button.primary:hover::after {
   font-weight: 600;
   font-size: 11px;
   transition: all var(--transition-fast);
+}
+
+.format-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 .format-tag svg {

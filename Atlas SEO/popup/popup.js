@@ -52,7 +52,8 @@ const state = {
   recentAudits: [],
   crawlProgress: { done: 0, total: 0 },
   aiHighlightPayload: null,
-  overlayActive: false
+  overlayActive: false,
+  mediaFilter: null
 };
 
 function setStatus(text, isLoading = false) {
@@ -1267,7 +1268,14 @@ function renderLinks(analysis) {
 
 function renderMedia(analysis) {
   const images = analysis.images || {};
-  const samples = images.samples || [];
+  let samples = images.samples || [];
+  if (state.mediaFilter) {
+    samples = samples.filter(s => {
+      const ext = (s.src || "").split(".").pop().split(/[?#]/)[0].toLowerCase();
+      const fmt = ext === "jpeg" ? "jpg" : ext;
+      return fmt === state.mediaFilter;
+    });
+  }
   const maxDim = images.maxDimensions || {};
   const formatCounts = images.formatCounts || {};
 
@@ -1304,7 +1312,8 @@ function renderMedia(analysis) {
         const fmtLower = fmt.toLowerCase();
         const icon = formatIcons[fmtLower] || '';
         const colorClass = formatColors[fmtLower] || '';
-        return `<span class="tag format-tag ${colorClass}">${icon}<span class="format-label">${fmt.toUpperCase()}</span><span class="format-count">${count}</span></span>`;
+        const isActive = state.mediaFilter === fmtLower;
+        return `<span class="tag format-tag ${colorClass} ${isActive ? "active" : ""}" data-format="${fmtLower}" style="cursor:pointer; opacity:${state.mediaFilter && !isActive ? 0.5 : 1}">${icon}<span class="format-label">${fmt.toUpperCase()}</span><span class="format-count">${count}</span></span>`;
       }).join("")
     : "";
   panelMap.media.innerHTML = `
@@ -1332,14 +1341,34 @@ function renderMedia(analysis) {
           <col class="col-section" />
           <col class="col-dims" />
           <col class="col-size" />
+          <col class="col-alt" style="width:60px" />
           <col />
         </colgroup>
-        <tr><th>Section</th><th>Dimensions</th><th>Size</th><th>Source</th></tr>
-        ${samples.map((img) => `<tr class="highlight-item jump-item" data-highlight-xpath="${escapeHtml(img.xpath || "")}" data-highlight-selector="${escapeHtml(img.selector || buildSrcSelector(img.src))}" data-highlight-src="${escapeHtml(img.src)}">
-          <td><span class="pill">${escapeHtml((img.section || "body").toUpperCase())}</span></td><td class="mono">${img.width}x${img.height}</td><td class="mono">${formatKb(img.size)}</td><td>${escapeHtml(img.src)}</td></tr>`).join("")}
+        <tr><th>Section</th><th>Dimensions</th><th>Size</th><th>Alt</th><th>Source</th></tr>
+        ${samples.map((img) => {
+    const ext = (img.src || "").split(".").pop().split(/[?#]/)[0].toLowerCase();
+    const fmt = ext === "jpeg" ? "jpg" : ext;
+    const colorClass = formatColors[fmt] || "";
+    const hasAlt = img.alt && img.alt.trim().length > 0;
+    return `<tr class="highlight-item jump-item" data-highlight-xpath="${escapeHtml(img.xpath || "")}" data-highlight-selector="${escapeHtml(img.selector || buildSrcSelector(img.src))}" data-highlight-src="${escapeHtml(img.src)}">
+              <td><span class="pill">${escapeHtml((img.section || "body").toUpperCase())}</span></td>
+              <td class="mono">${img.width}x${img.height}</td>
+              <td class="mono">${formatKb(img.size)}</td>
+              <td><span class="status-pill ${hasAlt ? "status-ok" : "status-error"}">${hasAlt ? "Yes" : "No"}</span></td>
+              <td style="display:flex; align-items:center; gap:6px;"><span class="format-dot ${colorClass}" title="${fmt}"></span> ${escapeHtml(img.src)}</td>
+            </tr>`;
+  }).join("")}
       </table></div>` : `<div class="empty">No images found.</div>`}
     </div>
   `;
+  // Attach filter handlers
+  panelMap.media.querySelectorAll(".format-tag").forEach(tag => {
+    tag.addEventListener("click", () => {
+      const fmt = tag.dataset.format;
+      state.mediaFilter = state.mediaFilter === fmt ? null : fmt;
+      renderMedia(analysis);
+    });
+  });
 }
 
 function renderSchema(analysis) {
@@ -2913,7 +2942,32 @@ if (toggleOverlayBtn) {
   toggleOverlayBtn.addEventListener("click", toggleOverlay);
 }
 
+initTheme();
 initTabs();
+
+function initTheme() {
+  const toggleBtn = document.getElementById("themeToggle");
+  const sunIcon = document.getElementById("sunIcon");
+  const moonIcon = document.getElementById("moonIcon");
+  const body = document.body;
+
+  const savedTheme = localStorage.getItem("atlas:theme");
+  if (savedTheme === "dark") {
+    body.classList.add("dark");
+    moonIcon.style.display = "none";
+    sunIcon.style.display = "block";
+  }
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      body.classList.toggle("dark");
+      const isDark = body.classList.contains("dark");
+      localStorage.setItem("atlas:theme", isDark ? "dark" : "light");
+      moonIcon.style.display = isDark ? "none" : "block";
+      sunIcon.style.display = isDark ? "block" : "none";
+    });
+  }
+}
 initNavSearch();
 initHighlighting();
 initJumping();

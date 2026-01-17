@@ -2123,24 +2123,40 @@
     const style = document.createElement("style");
     style.setAttribute("data-atlas-overlay", "true");
     style.textContent = `
-      .atlas-overlay-error {
-        outline: 3px solid #ef4444 !important;
-        outline-offset: 2px !important;
-        position: relative !important;
-      }
-      .atlas-overlay-warn {
-        outline: 3px solid #f59e0b !important;
-        outline-offset: 2px !important;
-        position: relative !important;
-      }
-      .atlas-overlay-tooltip {
+      .atlas-overlay-error { outline: 3px solid #ef4444 !important; outline-offset: 2px !important; position: relative !important; }
+      .atlas-overlay-warn { outline: 3px solid #f59e0b !important; outline-offset: 2px !important; position: relative !important; }
+      .atlas-overlay-h1 { outline: 2px dashed #3b82f6 !important; position: relative !important; }
+      .atlas-overlay-h2 { outline: 2px dashed #6366f1 !important; position: relative !important; }
+      .atlas-overlay-h3 { outline: 2px dashed #8b5cf6 !important; position: relative !important; }
+      .atlas-overlay-link-nofollow { outline: 2px solid #eab308 !important; }
+      .atlas-overlay-link-external { outline: 2px solid #f43f5e !important; }
+      .atlas-overlay-link-internal { outline: 2px solid #10b981 !important; }
+      
+      .atlas-overlay-label {
         position: absolute !important;
         background: #1f2937 !important;
+        color: #fff !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        font-size: 10px !important;
+        font-family: monospace !important;
+        z-index: 999990 !important;
+        pointer-events: none !important;
+        top: -20px !important;
+        left: 0 !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+      }
+      .atlas-overlay-h1 > .atlas-overlay-label { background: #3b82f6 !important; }
+      .atlas-overlay-h2 > .atlas-overlay-label { background: #6366f1 !important; }
+      .atlas-overlay-h3 > .atlas-overlay-label { background: #8b5cf6 !important; }
+
+      .atlas-overlay-tooltip {
+        position: absolute !important;
+        background: #ef4444 !important;
         color: #fff !important;
         padding: 6px 10px !important;
         border-radius: 6px !important;
         font-size: 12px !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
         z-index: 999999 !important;
         pointer-events: none !important;
         white-space: nowrap !important;
@@ -2153,51 +2169,106 @@
         top: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+        background: linear-gradient(135deg, #1f2937, #111827) !important;
         color: #fff !important;
         padding: 12px 20px !important;
         font-size: 14px !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-        z-index: 999999 !important;
-        text-align: center !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+        font-family: system-ui, sans-serif !important;
+        z-index: 2147483647 !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+        border-bottom: 2px solid #3b82f6 !important;
       }
     `;
     document.head.appendChild(style);
   }
 
   function clearOverlay() {
-    // Remove all overlay elements
-    document.querySelectorAll(".atlas-overlay-error, .atlas-overlay-warn").forEach(el => {
-      el.classList.remove("atlas-overlay-error", "atlas-overlay-warn");
+    document.querySelectorAll(".atlas-overlay-error, .atlas-overlay-warn, .atlas-overlay-h1, .atlas-overlay-h2, .atlas-overlay-h3, .atlas-overlay-link-nofollow, .atlas-overlay-link-external, .atlas-overlay-link-internal").forEach(el => {
+      el.classList.remove("atlas-overlay-error", "atlas-overlay-warn", "atlas-overlay-h1", "atlas-overlay-h2", "atlas-overlay-h3", "atlas-overlay-link-nofollow", "atlas-overlay-link-external", "atlas-overlay-link-internal");
     });
-    document.querySelectorAll(".atlas-overlay-tooltip, .atlas-overlay-banner").forEach(el => {
+    document.querySelectorAll(".atlas-overlay-tooltip, .atlas-overlay-banner, .atlas-overlay-label").forEach(el => {
       el.remove();
     });
   }
 
+  function addLabel(el, text, className = "atlas-overlay-label") {
+    const label = document.createElement("div");
+    label.className = className;
+    label.textContent = text;
+    if (getComputedStyle(el).position === "static") {
+      el.style.position = "relative";
+    }
+    el.appendChild(label);
+  }
+
   function showSeoOverlay(issues, images) {
-    // Show top-level issues as banner
     const criticalIssues = issues.filter(i => i.type === "error" || i.type === "critical");
-    if (criticalIssues.length) {
-      const banner = document.createElement("div");
-      banner.className = "atlas-overlay-banner";
-      banner.textContent = `Atlas SEO: ${criticalIssues.length} issue(s) found - ${criticalIssues.map(i => i.message).slice(0, 2).join(", ")}`;
+
+    // 1. Top Banner
+    const banner = document.createElement("div");
+    banner.className = "atlas-overlay-banner";
+    banner.innerHTML = `
+      <div>
+        <strong>Atlas SEO Overlay</strong>: 
+        Running on ${location.hostname} • 
+        ${criticalIssues.length ? `<span style="color:#ef4444">${criticalIssues.length} Critical Issues</span>` : "No critical errors"}
+      </div>
+      <div style="font-size:12px; opacity:0.8;">
+        <span style="color:#3b82f6">H1</span> 
+        <span style="color:#6366f1">H2</span> 
+        <span style="color:#8b5cf6">H3</span> • 
+        <span style="color:#eab308">Nofollow</span> 
+        <span style="color:#f43f5e">Ext</span> 
+        <span style="color:#10b981">Int</span>
+      </div>
+    `;
+    if (document.body) {
       document.body.insertBefore(banner, document.body.firstChild);
     }
 
-    // Highlight images with missing/short alt
+    // 2. Highlight Images (Missing Alt)
     images.forEach(img => {
       if (!img.src) return;
       const imgEl = findImageBySrc(img.src);
       if (imgEl && isElementVisible(imgEl)) {
         imgEl.classList.add("atlas-overlay-error");
-        imgEl.style.position = "relative";
-        const tooltip = document.createElement("div");
-        tooltip.className = "atlas-overlay-tooltip";
-        tooltip.textContent = img.issue || "Missing alt text";
-        imgEl.appendChild(tooltip);
+        addLabel(imgEl, img.issue || "MISSING ALT", "atlas-overlay-tooltip");
       }
     });
+
+    // 3. Highlight Headings
+    document.querySelectorAll("h1").forEach(el => { if (isElementVisible(el)) { el.classList.add("atlas-overlay-h1"); addLabel(el, "H1"); } });
+    document.querySelectorAll("h2").forEach(el => { if (isElementVisible(el)) { el.classList.add("atlas-overlay-h2"); addLabel(el, "H2"); } });
+    document.querySelectorAll("h3").forEach(el => { if (isElementVisible(el)) { el.classList.add("atlas-overlay-h3"); addLabel(el, "H3"); } });
+
+    // 4. Highlight Links
+    document.querySelectorAll("a[href]").forEach(el => {
+      if (!isElementVisible(el)) return;
+      const href = el.getAttribute("href") || "";
+      const rel = (el.getAttribute("rel") || "").toLowerCase();
+
+      let url;
+      try {
+        url = new URL(href, location.href);
+      } catch (err) {
+        return; // Skip invalid URLs
+      }
+
+      if (!["http:", "https:"].includes(url.protocol)) return; // Skip mailto, tel, javascript
+
+      // Logic: Nofollow > External > Internal
+      if (rel.includes("nofollow")) {
+        el.classList.add("atlas-overlay-link-nofollow");
+      } else if (url.hostname.replace(/^www\./, '') !== location.hostname.replace(/^www\./, '')) {
+        el.classList.add("atlas-overlay-link-external");
+      } else {
+        el.classList.add("atlas-overlay-link-internal");
+      }
+    });
+
+
   }
 })();
