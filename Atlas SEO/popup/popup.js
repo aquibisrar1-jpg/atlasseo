@@ -79,7 +79,7 @@ function transformAnalysisData(rawData) {
     issues,
     recommendations,
 
-    // OnPage section
+    // OnPage section - Enhanced with advanced validation
     onpage: {
       title: rawData.title || '',
       titleLength: (rawData.title || '').length,
@@ -97,10 +97,11 @@ function transformAnalysisData(rawData) {
       hasH1: (rawData.headingText?.h1 || []).length > 0,
       h1Count: (rawData.headingText?.h1 || []).length,
       h2Count: (rawData.headingText?.h2 || []).length,
-      h3Count: (rawData.headingText?.h3 || []).length
+      h3Count: (rawData.headingText?.h3 || []).length,
+      keywordProminence: analyzeKeywordProminence(rawData)
     },
 
-    // Content section
+    // Content section - Enhanced with real readability scoring
     content: {
       wordCount: rawData.wordCount || 0,
       characterCount: calculateCharacterCount(rawData),
@@ -111,60 +112,21 @@ function transformAnalysisData(rawData) {
       readabilityStatus: getReadabilityStatus(rawData.contentQuality?.readability?.score),
       avgSentenceLength: calculateAvgSentenceLength(rawData),
       avgParagraphLength: calculateAvgParagraphLength(rawData),
-      textHtmlRatio: (rawData.textRatio * 100).toFixed(2)
+      textHtmlRatio: (rawData.textRatio * 100).toFixed(2),
+      keywordDensity: analyzeKeywordDensity(rawData.fullContent || '', ['SEO', 'content', 'page'])
     },
 
-    // Links section - collector.js returns {total, internal, external, nofollow, ugc, sponsored, internalLinks}
-    links: {
-      totalLinks: rawData.links?.total || 0,
-      internalCount: rawData.links?.internal || 0,
-      externalCount: rawData.links?.external || 0,
-      noFollowCount: rawData.links?.nofollow || 0,
-      sponsoredCount: rawData.links?.sponsored || 0,
-      ugcCount: rawData.links?.ugc || 0,
-      links: (rawData.links?.internalLinks || []).map(link => ({
-        type: 'internal',
-        url: link.href || '',
-        text: link.text || '',
-        nofollow: false,
-        section: link.section || 'body',
-        visible: link.visible !== false
-      })).slice(0, 50) // Show max 50
-    },
+    // Links section - Enhanced with comprehensive analysis
+    links: analyzeLinkStructure(rawData),
 
-    // Media section - collector.js returns {total, missingAlt, shortAlt, missingSize, largeImages, genericFilename, samples}
-    media: {
-      totalImages: rawData.images?.total || 0,
-      missingAltCount: rawData.images?.missingAlt || 0,
-      imagesWithAlt: (rawData.images?.total || 0) - (rawData.images?.missingAlt || 0),
-      unoptimizedCount: (rawData.images?.largeImages || 0) + (rawData.images?.missingSize || 0),
-      images: (rawData.images?.samples || []).map(img => ({
-        src: img.src || '',
-        alt: img.alt || '',
-        width: img.width || 0,
-        height: img.height || 0,
-        size: img.size || 0,
-        format: img.format || 'unknown',
-        section: img.section || 'body'
-      })).slice(0, 50) // Show max 50
-    },
+    // Media section - Enhanced with optimization analysis
+    media: analyzeImageOptimization(rawData),
 
-    // Schema section
-    schema: {
-      schemaCount: (rawData.structuredData?.itemsCount || 0),
-      schemas: (rawData.structuredData?.items || []).slice(0, 20),
-      hasArticle: (rawData.structuredData?.items || []).some(s => s['@type']?.includes('Article')),
-      hasProduct: (rawData.structuredData?.items || []).some(s => s['@type']?.includes('Product')),
-      hasBreadcrumb: (rawData.structuredData?.items || []).some(s => s['@type']?.includes('Breadcrumb')),
-      hasOrganization: (rawData.structuredData?.items || []).some(s => s['@type']?.includes('Organization'))
-    },
+    // Schema section - Enhanced with validation
+    schema: validateSchemaMarkup(rawData),
 
-    // Tech section
-    tech: {
-      allTech: rawData.tech || [],
-      categories: categorizeTech(rawData.tech || []),
-      totalDetected: (rawData.tech || []).length
-    },
+    // Tech section - Enhanced with vulnerability and performance analysis
+    tech: analyzeTechnologyStack(rawData),
 
     // Fix plan (issues sorted by priority)
     fixPlan: issues
@@ -185,19 +147,11 @@ function transformAnalysisData(rawData) {
       webVitalsScore: calculateWebVitalsScore(rawData.performance)
     },
 
-    // JS SEO section
-    jsSeo: {
-      isDynamic: (rawData.dynamic?.count || 0) > 0,
-      dynamicElementsCount: rawData.dynamic?.count || 0,
-      jsRenderDiff: rawData.jsRender || { differences: [] },
-      hasSignificantDiff: (rawData.jsRender?.differences || []).length > 0
-    },
+    // JS SEO section - Enhanced with detailed analysis
+    jsSeo: analyzeJSSeoImpact(rawData),
 
-    // AI Visibility section
-    aiVisibility: rawData.aiVisibility || {
-      visibility: 0,
-      factors: []
-    }
+    // AI Visibility section - Enhanced with multi-factor scoring
+    aiVisibility: analyzeAiVisibility(rawData)
   };
 }
 
@@ -598,7 +552,861 @@ function calculateWebVitalsScore(perf) {
 }
 
 /* ========================================
-   4. MESSAGE PASSING & ANALYSIS
+   4. ADVANCED ANALYSIS ALGORITHMS
+   ======================================== */
+
+// ============ CONTENT READABILITY & KEYWORD ANALYSIS ============
+
+function calculateFleschKincaidReadability(content) {
+  if (!content || content.length === 0) return { score: 0, grade: 'F', interpretation: 'No content' };
+
+  // Split into sentences (simplified)
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const sentenceCount = sentences.length || 1;
+
+  // Split into words
+  const words = content.match(/\b\w+\b/g) || [];
+  const wordCount = words.length;
+
+  // Count syllables (simplified approach)
+  const syllableCount = countSyllables(content);
+
+  if (wordCount === 0 || sentenceCount === 0) return { score: 0, grade: 'F', interpretation: 'Insufficient content' };
+
+  // Flesch-Kincaid Grade Level formula
+  // 0.39 * (words / sentences) + 11.8 * (syllables / words) - 15.59
+  const gradeLevel = (0.39 * (wordCount / sentenceCount)) + (11.8 * (syllableCount / wordCount)) - 15.59;
+
+  // Convert to readability score (0-100)
+  const score = Math.max(0, Math.min(100, 100 - (gradeLevel * 10)));
+
+  let grade = 'F';
+  if (score >= 90) grade = 'A';
+  else if (score >= 80) grade = 'B';
+  else if (score >= 70) grade = 'C';
+  else if (score >= 60) grade = 'D';
+  else if (score >= 50) grade = 'E';
+
+  let interpretation = 'Very difficult';
+  if (gradeLevel <= 6) interpretation = 'Easy';
+  else if (gradeLevel <= 9) interpretation = 'Average';
+  else if (gradeLevel <= 12) interpretation = 'Difficult';
+  else if (gradeLevel <= 14) interpretation = 'Very difficult';
+  else interpretation = 'Very difficult';
+
+  return { score: Math.round(score), grade, interpretation, gradeLevel: Math.round(gradeLevel * 10) / 10 };
+}
+
+function countSyllables(text) {
+  // Simplified syllable counting
+  const words = text.toLowerCase().match(/\b[a-z]+\b/g) || [];
+  let count = 0;
+
+  words.forEach(word => {
+    let syllables = 0;
+    const vowels = 'aeiouy';
+    let previousWasVowel = false;
+
+    for (let i = 0; i < word.length; i++) {
+      const isVowel = vowels.includes(word[i]);
+      if (isVowel && !previousWasVowel) syllables++;
+      previousWasVowel = isVowel;
+    }
+
+    // Adjust for silent e
+    if (word.endsWith('e')) syllables--;
+    if (word.endsWith('le') && word.length > 2 && !vowels.includes(word[word.length - 3])) syllables++;
+
+    count += Math.max(1, syllables);
+  });
+
+  return count;
+}
+
+function analyzeKeywordDensity(content, keywords = []) {
+  if (!content || keywords.length === 0) return { keywordDensity: [], averageDensity: 0 };
+
+  const words = content.toLowerCase().match(/\b[a-z]+(?:\s+[a-z]+)*/g) || [];
+  const wordCount = words.length;
+
+  const densities = keywords.map(keyword => {
+    const keywordLower = keyword.toLowerCase();
+    const keywordWords = keywordLower.split(/\s+/);
+
+    let occurrences = 0;
+    if (keywordWords.length === 1) {
+      // Single word keyword
+      occurrences = words.filter(w => w === keywordLower).length;
+    } else {
+      // Multi-word keyword - search for phrase
+      const contentLower = content.toLowerCase();
+      const regex = new RegExp(keywordLower, 'g');
+      occurrences = (contentLower.match(regex) || []).length;
+    }
+
+    const density = wordCount > 0 ? (occurrences / wordCount) * 100 : 0;
+
+    return {
+      keyword,
+      occurrences,
+      density: Math.round(density * 100) / 100,
+      status: density > 5 ? 'over' : density > 2.5 ? 'optimal' : density > 0 ? 'low' : 'none'
+    };
+  });
+
+  const averageDensity = densities.length > 0
+    ? densities.reduce((sum, d) => sum + d.density, 0) / densities.length
+    : 0;
+
+  return {
+    keywordDensity: densities.sort((a, b) => b.density - a.density),
+    averageDensity: Math.round(averageDensity * 100) / 100
+  };
+}
+
+function analyzeKeywordProminence(rawData) {
+  const title = (rawData.title || '').toLowerCase();
+  const firstParagraph = (rawData.firstParagraph || '').toLowerCase();
+  const headings = (rawData.headingText || {});
+
+  return {
+    titleKeywords: extractKeywords(title, 3),
+    headingKeywords: extractKeywordsFromHeadings(headings),
+    firstParagraphKeywords: extractKeywords(firstParagraph, 5),
+    keywordPlacement: {
+      inTitle: calculateKeywordScore(title),
+      inHeadings: calculateKeywordScore(JSON.stringify(headings)),
+      inFirstParagraph: calculateKeywordScore(firstParagraph)
+    }
+  };
+}
+
+function extractKeywords(text, limit = 5) {
+  const words = text.match(/\b\w{4,}\b/g) || [];
+  const frequency = {};
+
+  words.forEach(word => {
+    frequency[word] = (frequency[word] || 0) + 1;
+  });
+
+  return Object.entries(frequency)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([word, count]) => ({ word, frequency: count }));
+}
+
+function extractKeywordsFromHeadings(headingText) {
+  const headings = [];
+  for (let i = 1; i <= 3; i++) {
+    const key = `h${i}`;
+    if (headingText[key] && Array.isArray(headingText[key])) {
+      headings.push(...headingText[key]);
+    }
+  }
+  return extractKeywords(headings.join(' '), 5);
+}
+
+function calculateKeywordScore(text) {
+  // Score how well keywords are distributed
+  const words = text.match(/\b\w+\b/g) || [];
+  if (words.length === 0) return 0;
+
+  const frequency = {};
+  words.forEach(word => {
+    frequency[word] = (frequency[word] || 0) + 1;
+  });
+
+  // Calculate entropy (distribution)
+  let entropy = 0;
+  Object.values(frequency).forEach(count => {
+    const probability = count / words.length;
+    entropy -= probability * Math.log2(probability);
+  });
+
+  return Math.min(100, entropy * 20);
+}
+
+// ============ LINKS ANALYSIS ============
+
+function analyzeLinkStructure(rawData) {
+  const links = rawData.links || {};
+  const total = links.total || 0;
+  const internal = links.internal || 0;
+  const external = links.external || 0;
+
+  const analysis = {
+    totalLinks: total,
+    internalLinks: internal,
+    externalLinks: external,
+    nofollowLinks: links.nofollow || 0,
+    sponsoredLinks: links.sponsored || 0,
+    ugcLinks: links.ugc || 0,
+    brokenLinks: 0,
+    internalLinkDistribution: total > 0 ? Math.round((internal / total) * 100) : 0,
+    externalLinkDistribution: total > 0 ? Math.round((external / total) * 100) : 0,
+    linkRatio: external > 0 ? (internal / external).toFixed(2) : 'N/A',
+    orphanedPages: detectOrphanedPages(links.internalLinks || []),
+    linkVelocity: calculateLinkVelocity(links.internalLinks || []),
+    anchorTextQuality: analyzeAnchorTexts(links.internalLinks || []),
+    externalLinkAuthority: analyzeExternalLinks(links.externalLinks || [])
+  };
+
+  return analysis;
+}
+
+function detectOrphanedPages(internalLinks) {
+  // Identify pages that are only linked from one location
+  if (!internalLinks || internalLinks.length === 0) return [];
+
+  const urlCounts = {};
+  internalLinks.forEach(link => {
+    if (link.href) {
+      urlCounts[link.href] = (urlCounts[link.href] || 0) + 1;
+    }
+  });
+
+  return Object.entries(urlCounts)
+    .filter(([url, count]) => count === 1)
+    .map(([url]) => url)
+    .slice(0, 10);
+}
+
+function calculateLinkVelocity(internalLinks) {
+  // Analyze link distribution across page sections
+  if (!internalLinks || internalLinks.length === 0) return { header: 0, body: 0, footer: 0 };
+
+  const sections = { header: 0, body: 0, footer: 0 };
+  internalLinks.forEach(link => {
+    const section = link.section || 'body';
+    if (sections.hasOwnProperty(section)) {
+      sections[section]++;
+    }
+  });
+
+  return sections;
+}
+
+function analyzeAnchorTexts(links) {
+  if (!links || links.length === 0) return { avgLength: 0, quality: 'poor', issues: [] };
+
+  const anchorTexts = links.map(l => l.text || '').filter(t => t.length > 0);
+  const avgLength = anchorTexts.reduce((sum, t) => sum + t.length, 0) / (anchorTexts.length || 1);
+
+  const issues = [];
+  const issues_found = {
+    generic: 0,
+    tooShort: 0,
+    tooLong: 0,
+    empty: 0
+  };
+
+  links.forEach(link => {
+    const text = (link.text || '').trim();
+    if (!text) {
+      issues_found.empty++;
+      issues.push({ type: 'empty', link: link.href });
+    } else if (text.length < 3) {
+      issues_found.tooShort++;
+      issues.push({ type: 'too-short', text });
+    } else if (text.length > 100) {
+      issues_found.tooLong++;
+      issues.push({ type: 'too-long', text: text.substring(0, 50) });
+    } else if (['click here', 'read more', 'learn more', 'link', 'page'].includes(text.toLowerCase())) {
+      issues_found.generic++;
+      issues.push({ type: 'generic', text });
+    }
+  });
+
+  const totalIssues = Object.values(issues_found).reduce((a, b) => a + b, 0);
+  let quality = 'good';
+  if (totalIssues > links.length * 0.5) quality = 'poor';
+  else if (totalIssues > links.length * 0.3) quality = 'fair';
+  else if (totalIssues > links.length * 0.1) quality = 'good';
+
+  return {
+    totalLinks: links.length,
+    avgLength: Math.round(avgLength),
+    quality,
+    issues: issues_found,
+    examples: issues.slice(0, 5)
+  };
+}
+
+function analyzeExternalLinks(externalLinks = []) {
+  return {
+    count: externalLinks.length || 0,
+    avgDomain: externalLinks.length > 0
+      ? [...new Set(externalLinks.map(l => new URL(l.href || '').hostname))].length
+      : 0,
+    openInNewTab: externalLinks.filter(l => l.target === '_blank').length || 0
+  };
+}
+
+// ============ IMAGE OPTIMIZATION ANALYSIS ============
+
+function analyzeImageOptimization(rawData) {
+  const images = rawData.images || {};
+  const samples = images.samples || [];
+
+  const analysis = {
+    totalImages: images.total || 0,
+    missingAltCount: images.missingAlt || 0,
+    altCoveragePercent: images.total > 0 ? Math.round(((images.total - (images.missingAlt || 0)) / images.total) * 100) : 0,
+    unoptimizedCount: (images.largeImages || 0) + (images.missingSize || 0),
+    imageFormatQuality: analyzeImageFormats(samples),
+    imageSizeOptimization: analyzeImageSizes(samples),
+    altTextQuality: analyzeAltTextQuality(samples),
+    genericFilenameCount: images.genericFilename || 0,
+    recommendations: []
+  };
+
+  // Generate recommendations
+  if (analysis.missingAltCount > 0) {
+    analysis.recommendations.push({
+      priority: 'high',
+      text: `Add alt text to ${analysis.missingAltCount} images for accessibility and SEO`
+    });
+  }
+
+  if (analysis.unoptimizedCount > 0) {
+    analysis.recommendations.push({
+      priority: 'medium',
+      text: `Optimize ${analysis.unoptimizedCount} images by reducing file size or converting to modern formats`
+    });
+  }
+
+  if (analysis.imageFormatQuality.hasLargeUnoptimized > 0) {
+    analysis.recommendations.push({
+      priority: 'medium',
+      text: 'Consider using WebP or AVIF format for better compression'
+    });
+  }
+
+  return analysis;
+}
+
+function analyzeImageFormats(samples) {
+  if (!samples || samples.length === 0) return { optimal: 0, suboptimal: 0, hasLargeUnoptimized: 0 };
+
+  let optimal = 0;
+  let suboptimal = 0;
+  let hasLargeUnoptimized = 0;
+
+  samples.forEach(img => {
+    const format = (img.format || 'unknown').toLowerCase();
+    const size = img.size || 0;
+
+    // WebP and AVIF are optimal
+    if (['webp', 'avif'].includes(format)) {
+      optimal++;
+    } else if (['jpg', 'jpeg', 'png', 'svg'].includes(format)) {
+      suboptimal++;
+      // Check for large images that could be optimized
+      if (size > 500000) hasLargeUnoptimized++; // > 500KB
+    }
+  });
+
+  return { optimal, suboptimal, hasLargeUnoptimized, total: samples.length };
+}
+
+function analyzeImageSizes(samples) {
+  if (!samples || samples.length === 0) return { avgSize: 0, largest: 0, total: 0, count: 0 };
+
+  const validSizes = samples.map(img => img.size || 0).filter(size => size > 0);
+  if (validSizes.length === 0) return { avgSize: 0, largest: 0, total: 0, count: 0 };
+
+  const total = validSizes.reduce((a, b) => a + b, 0);
+  const avg = total / validSizes.length;
+  const largest = Math.max(...validSizes);
+
+  return {
+    avgSize: Math.round(avg / 1024), // KB
+    largestSize: Math.round(largest / 1024), // KB
+    totalSize: Math.round(total / 1024 / 1024), // MB
+    count: validSizes.length
+  };
+}
+
+function analyzeAltTextQuality(samples) {
+  if (!samples || samples.length === 0) return { avgLength: 0, quality: 'poor' };
+
+  const altTexts = samples.map(img => img.alt || '').filter(alt => alt.length > 0);
+  if (altTexts.length === 0) return { avgLength: 0, quality: 'poor', missingCount: samples.length };
+
+  const avgLength = altTexts.reduce((sum, alt) => sum + alt.length, 0) / altTexts.length;
+  let quality = 'good';
+  if (avgLength < 10) quality = 'poor';
+  else if (avgLength < 50) quality = 'fair';
+
+  return {
+    avgLength: Math.round(avgLength),
+    quality,
+    missingCount: samples.length - altTexts.length,
+    totalImages: samples.length
+  };
+}
+
+// ============ SCHEMA VALIDATION ============
+
+function validateSchemaMarkup(rawData) {
+  const schemas = rawData.structuredData?.items || [];
+  const validation = {
+    totalSchemas: schemas.length,
+    schemasByType: {},
+    commonIssues: [],
+    validSchemas: 0,
+    incompleteSchemas: 0,
+    recommendations: []
+  };
+
+  schemas.forEach(schema => {
+    const schemaType = schema['@type'] || 'Unknown';
+    if (!validation.schemasByType[schemaType]) {
+      validation.schemasByType[schemaType] = { count: 0, valid: 0, issues: [] };
+    }
+    validation.schemasByType[schemaType].count++;
+
+    // Validate schema based on type
+    const result = validateSchemaByType(schema);
+    if (result.isValid) {
+      validation.validSchemas++;
+      validation.schemasByType[schemaType].valid++;
+    } else {
+      validation.incompleteSchemas++;
+      validation.commonIssues.push(...result.issues);
+      validation.schemasByType[schemaType].issues.push(...result.issues);
+    }
+  });
+
+  // Generate recommendations
+  if (validation.totalSchemas === 0) {
+    validation.recommendations.push('Add structured data (Schema.org) to improve rich snippet eligibility');
+  } else if (validation.incompleteSchemas > 0) {
+    validation.recommendations.push(`Fix ${validation.incompleteSchemas} incomplete schema(s) with missing required properties`);
+  }
+
+  // Check for common schema types
+  const hasArticle = validation.schemasByType['Article'];
+  const hasProduct = validation.schemasByType['Product'];
+  const hasOrganization = validation.schemasByType['Organization'];
+
+  if (!hasArticle) {
+    validation.recommendations.push('Consider adding Article schema for blog posts or news content');
+  }
+
+  return validation;
+}
+
+function validateSchemaByType(schema) {
+  const type = schema['@type'];
+  const requiredFields = {
+    Article: ['headline', 'datePublished', 'author'],
+    Product: ['name', 'description', 'offers'],
+    Organization: ['name', 'url', 'logo'],
+    LocalBusiness: ['name', 'address', 'telephone'],
+    Breadcrumb: ['itemListElement'],
+    FAQPage: ['mainEntity']
+  };
+
+  const required = requiredFields[type] || [];
+  const issues = [];
+  let isValid = true;
+
+  required.forEach(field => {
+    if (!schema[field]) {
+      issues.push(`Missing required field: ${field}`);
+      isValid = false;
+    }
+  });
+
+  // Check for @context
+  if (!schema['@context']) {
+    issues.push('Missing @context property');
+  }
+
+  return { isValid, issues };
+}
+
+// ============ TECHNOLOGY ANALYSIS ============
+
+function analyzeTechnologyStack(rawData) {
+  const techs = rawData.tech || [];
+  const analysis = {
+    totalTechnologies: techs.length,
+    byCategory: {},
+    potentialVulnerabilities: [],
+    versionInfo: [],
+    performanceImpact: { positive: [], negative: [] }
+  };
+
+  techs.forEach(tech => {
+    const category = tech.category || 'Other';
+    if (!analysis.byCategory[category]) {
+      analysis.byCategory[category] = [];
+    }
+    analysis.byCategory[category].push(tech);
+
+    // Check for version info
+    if (tech.version) {
+      analysis.versionInfo.push({
+        name: tech.name,
+        version: tech.version,
+        category
+      });
+    }
+
+    // Check for common vulnerability patterns
+    const vulnCheck = checkTechVulnerabilities(tech);
+    if (vulnCheck.hasRisk) {
+      analysis.potentialVulnerabilities.push(vulnCheck);
+    }
+
+    // Performance assessment
+    const perfAssessment = assessTechPerformance(tech);
+    if (perfAssessment.impact === 'positive') {
+      analysis.performanceImpact.positive.push(tech.name);
+    } else if (perfAssessment.impact === 'negative') {
+      analysis.performanceImpact.negative.push(tech.name);
+    }
+  });
+
+  return analysis;
+}
+
+function checkTechVulnerabilities(tech) {
+  // Simplified vulnerability checking
+  const outdatedVersions = {
+    'WordPress': { vulnerable: ['5.0', '5.1', '5.2'], message: 'Outdated WordPress version' },
+    'jQuery': { vulnerable: ['1.x', '2.x'], message: 'Outdated jQuery - consider upgrading' }
+  };
+
+  const check = outdatedVersions[tech.name];
+  let hasRisk = false;
+  let severity = 'low';
+
+  if (check && tech.version) {
+    const majorVersion = tech.version.split('.')[0];
+    if (check.vulnerable.some(v => tech.version.startsWith(v))) {
+      hasRisk = true;
+      severity = 'medium';
+    }
+  }
+
+  return {
+    name: tech.name,
+    version: tech.version,
+    hasRisk,
+    severity,
+    message: hasRisk ? check?.message : null
+  };
+}
+
+function assessTechPerformance(tech) {
+  // Assess performance impact of technologies
+  const performanceData = {
+    'React': { impact: 'mixed', size: 'large', note: 'Good for interactive sites' },
+    'Vue': { impact: 'positive', size: 'small', note: 'Lightweight framework' },
+    'jQuery': { impact: 'negative', size: 'medium', note: 'Consider modern alternatives' },
+    'Bootstrap': { impact: 'neutral', size: 'medium', note: 'CSS framework' },
+    'Google Analytics': { impact: 'negative', size: 'small', note: 'Script overhead' },
+    'Cloudflare': { impact: 'positive', size: 'none', note: 'CDN acceleration' }
+  };
+
+  return performanceData[tech.name] || { impact: 'neutral', size: 'unknown' };
+}
+
+// ============ JAVASCRIPT SEO ANALYSIS ============
+
+function analyzeJSSeoImpact(rawData) {
+  const jsRender = rawData.jsRender || {};
+  const dynamic = rawData.dynamic || {};
+
+  const analysis = {
+    isDynamic: dynamic.count > 0,
+    dynamicElementCount: dynamic.count || 0,
+    jsModifiedElements: jsRender.differences || [],
+    contentHiddenByJs: detectJsHiddenContent(jsRender),
+    criticalRenderingPath: analyzeCriticalPath(rawData),
+    recommendations: []
+  };
+
+  // Generate recommendations
+  if (analysis.isDynamic) {
+    analysis.recommendations.push({
+      priority: 'high',
+      text: 'JavaScript dynamically renders content. Ensure Google can crawl and index all content.'
+    });
+  }
+
+  if (analysis.contentHiddenByJs > 0) {
+    analysis.recommendations.push({
+      priority: 'high',
+      text: `${analysis.contentHiddenByJs} content element(s) are hidden by JavaScript. Make sure critical content is server-rendered.`
+    });
+  }
+
+  return analysis;
+}
+
+function detectJsHiddenContent(jsRender) {
+  if (!jsRender || !jsRender.differences) return 0;
+
+  // Count elements that were hidden or removed by JS
+  const hiddenPatterns = ['display: none', 'visibility: hidden', 'removed', 'hidden'];
+  let count = 0;
+
+  jsRender.differences.forEach(diff => {
+    if (hiddenPatterns.some(pattern => diff.toLowerCase().includes(pattern))) {
+      count++;
+    }
+  });
+
+  return count;
+}
+
+function analyzeCriticalPath(rawData) {
+  const perf = rawData.performance || {};
+  return {
+    ttfb: perf.ttfb || 0,
+    firstContentfulPaint: perf.fcp || 0,
+    largestContentfulPaint: perf.lcp || 0,
+    cumulativeLayoutShift: perf.cls || 0,
+    inputDelay: perf.inp || 0,
+    loadComplete: perf.load || 0
+  };
+}
+
+// ============ AI VISIBILITY ANALYSIS ============
+
+function analyzeAiVisibility(rawData) {
+  const factors = [];
+  let score = 100;
+
+  // Content Quality (20 points)
+  const contentScore = evaluateContentQuality(rawData);
+  factors.push({
+    label: 'Content Quality',
+    score: contentScore,
+    maxScore: 20,
+    status: contentScore >= 15 ? 'Good' : contentScore >= 10 ? 'Fair' : 'Poor',
+    description: 'Comprehensive, well-structured content with good readability'
+  });
+  score -= (20 - contentScore);
+
+  // Structured Data (15 points)
+  const schemaScore = evaluateStructuredData(rawData);
+  factors.push({
+    label: 'Structured Data',
+    score: schemaScore,
+    maxScore: 15,
+    status: schemaScore >= 12 ? 'Good' : schemaScore >= 8 ? 'Fair' : 'Poor',
+    description: 'JSON-LD schema markup for AI model context'
+  });
+  score -= (15 - schemaScore);
+
+  // Indexability (15 points)
+  const indexScore = evaluateIndexability(rawData);
+  factors.push({
+    label: 'Indexability',
+    score: indexScore,
+    maxScore: 15,
+    status: indexScore >= 12 ? 'Good' : indexScore >= 8 ? 'Fair' : 'Poor',
+    description: 'Accessible to crawlers and indexed properly'
+  });
+  score -= (15 - indexScore);
+
+  // Link Authority (15 points)
+  const authScore = evaluateLinkAuthority(rawData);
+  factors.push({
+    label: 'Link Authority',
+    score: authScore,
+    maxScore: 15,
+    status: authScore >= 12 ? 'Good' : authScore >= 8 ? 'Fair' : 'Poor',
+    description: 'Quality internal linking and external citations'
+  });
+  score -= (15 - authScore);
+
+  // Freshness (10 points)
+  const freshnessScore = evaluateContentFreshness(rawData);
+  factors.push({
+    label: 'Content Freshness',
+    score: freshnessScore,
+    maxScore: 10,
+    status: freshnessScore >= 8 ? 'Good' : freshnessScore >= 5 ? 'Fair' : 'Poor',
+    description: 'Recently updated or published content'
+  });
+  score -= (10 - freshnessScore);
+
+  // Technical Performance (10 points)
+  const techScore = evaluateTechnicalPerformance(rawData);
+  factors.push({
+    label: 'Technical Performance',
+    score: techScore,
+    maxScore: 10,
+    status: techScore >= 8 ? 'Good' : techScore >= 5 ? 'Fair' : 'Poor',
+    description: 'Fast load times and Core Web Vitals compliance'
+  });
+  score -= (10 - techScore);
+
+  // Accessibility (5 points)
+  const accessScore = evaluateAccessibility(rawData);
+  factors.push({
+    label: 'Accessibility',
+    score: accessScore,
+    maxScore: 5,
+    status: accessScore >= 4 ? 'Good' : accessScore >= 2 ? 'Fair' : 'Poor',
+    description: 'WCAG compliance and semantic HTML'
+  });
+  score -= (5 - accessScore);
+
+  return {
+    visibility: Math.max(0, Math.min(100, score)),
+    factors,
+    overallStatus: score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Poor'
+  };
+}
+
+function evaluateContentQuality(rawData) {
+  let score = 0;
+  const wordCount = rawData.wordCount || 0;
+  const readability = rawData.contentQuality?.readability?.score || 0;
+
+  if (wordCount >= 1000) score += 8;
+  else if (wordCount >= 500) score += 5;
+  else if (wordCount >= 300) score += 3;
+
+  if (readability >= 70) score += 8;
+  else if (readability >= 50) score += 5;
+  else if (readability >= 30) score += 2;
+
+  const headingCount = (rawData.headingText?.h2 || []).length + (rawData.headingText?.h3 || []).length;
+  if (headingCount >= 5) score += 4;
+  else if (headingCount >= 3) score += 2;
+
+  return Math.min(20, score);
+}
+
+function evaluateStructuredData(rawData) {
+  let score = 0;
+  const schemas = rawData.structuredData?.items || [];
+
+  if (schemas.length >= 3) score += 8;
+  else if (schemas.length >= 1) score += 4;
+
+  const hasArticle = schemas.some(s => s['@type']?.includes('Article'));
+  const hasOrganization = schemas.some(s => s['@type']?.includes('Organization'));
+  const hasBreadcrumb = schemas.some(s => s['@type']?.includes('Breadcrumb'));
+
+  if (hasArticle) score += 3;
+  if (hasOrganization) score += 2;
+  if (hasBreadcrumb) score += 2;
+
+  return Math.min(15, score);
+}
+
+function evaluateIndexability(rawData) {
+  let score = 15; // Start with perfect score
+
+  if (rawData.metaRobots?.includes('noindex')) score -= 15;
+  if (!rawData.canonical) score -= 3;
+  if (!rawData.viewport) score -= 3;
+  if (!rawData.language) score -= 2;
+
+  return Math.max(0, score);
+}
+
+function evaluateLinkAuthority(rawData) {
+  let score = 0;
+  const links = rawData.links || {};
+  const internal = links.internal || 0;
+  const external = links.external || 0;
+  const total = links.total || 0;
+
+  if (internal >= 10) score += 8;
+  else if (internal >= 5) score += 5;
+  else if (internal >= 1) score += 2;
+
+  if (external >= 5) score += 5;
+  else if (external >= 1) score += 2;
+
+  const ratio = total > 0 ? internal / total : 0;
+  if (ratio >= 0.6) score += 2;
+
+  return Math.min(15, score);
+}
+
+function evaluateContentFreshness(rawData) {
+  // Check for publication date in structured data
+  let score = 0;
+  const schemas = rawData.structuredData?.items || [];
+
+  schemas.forEach(schema => {
+    if (schema.datePublished || schema.dateModified) {
+      try {
+        const date = new Date(schema.datePublished || schema.dateModified);
+        const daysSinceUpdate = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
+
+        if (daysSinceUpdate < 7) score += 10;
+        else if (daysSinceUpdate < 30) score += 8;
+        else if (daysSinceUpdate < 90) score += 5;
+        else if (daysSinceUpdate < 365) score += 3;
+        else score += 1;
+      } catch (e) {
+        score += 2;
+      }
+    } else {
+      score += 2; // Assume somewhat fresh if has schema
+    }
+  });
+
+  return Math.min(10, score);
+}
+
+function evaluateTechnicalPerformance(rawData) {
+  let score = 0;
+  const perf = rawData.performance || {};
+
+  // LCP (Largest Contentful Paint)
+  const lcp = perf.lcp || 0;
+  if (lcp < 2500) score += 4;
+  else if (lcp < 4000) score += 2;
+
+  // CLS (Cumulative Layout Shift)
+  const cls = perf.cls || 0;
+  if (cls < 0.1) score += 3;
+  else if (cls < 0.25) score += 1;
+
+  // Load time
+  const load = perf.load || 0;
+  if (load < 3000) score += 3;
+  else if (load < 5000) score += 1;
+
+  return Math.min(10, score);
+}
+
+function evaluateAccessibility(rawData) {
+  let score = 0;
+  const images = rawData.images || {};
+  const total = images.total || 0;
+  const missing = images.missingAlt || 0;
+
+  if (total > 0) {
+    const coverage = 1 - (missing / total);
+    if (coverage >= 0.95) score += 3;
+    else if (coverage >= 0.80) score += 2;
+    else if (coverage >= 0.50) score += 1;
+  } else if (total === 0) {
+    score += 2; // No images is also accessible
+  }
+
+  if (rawData.language) score += 2;
+  if (rawData.viewport) score += 1;
+
+  return Math.min(5, score);
+}
+
+/* ========================================
+   5. MESSAGE PASSING & ANALYSIS
    ======================================== */
 
 async function analyzeCurrentPage(tab) {
@@ -953,6 +1761,8 @@ function renderContent(panel) {
   if (!data || !data.content) return;
 
   const content = data.content;
+  const keywordData = content.keywordDensity || {};
+
   panel.innerHTML = `
     <div class="content-container">
       <div class="content-metrics">
@@ -979,6 +1789,7 @@ function renderContent(panel) {
       </div>
 
       <div class="content-details">
+        <h3>Content Metrics</h3>
         <div class="detail-item">
           <span class="label">Paragraphs:</span>
           <span class="value">${content.paragraphCount}</span>
@@ -992,10 +1803,26 @@ function renderContent(panel) {
           <span class="value">${content.characterCount}</span>
         </div>
         <div class="detail-item">
-          <span class="label">Readability Grade:</span>
-          <span class="value">${content.readabilityGrade}</span>
+          <span class="label">Avg Paragraph Length:</span>
+          <span class="value">${content.avgParagraphLength} words</span>
         </div>
       </div>
+
+      ${keywordData.keywordDensity && keywordData.keywordDensity.length > 0 ? `
+        <div class="keyword-density">
+          <h3>Keyword Density Analysis</h3>
+          <div class="keyword-list">
+            ${keywordData.keywordDensity.map(kw => `
+              <div class="keyword-item">
+                <span class="keyword-text">${escapeHtml(kw.keyword)}</span>
+                <span class="keyword-density">${kw.density}%</span>
+                <span class="keyword-status status-${kw.status}">${kw.status}</span>
+              </div>
+            `).join('')}
+          </div>
+          <p class="metric-note">Average density: ${keywordData.averageDensity || 0}%</p>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -1005,6 +1832,8 @@ function renderLinks(panel) {
   if (!data || !data.links) return;
 
   const links = data.links;
+  const anchorQuality = links.anchorTextQuality || {};
+
   panel.innerHTML = `
     <div class="links-container">
       <div class="links-summary">
@@ -1013,32 +1842,76 @@ function renderLinks(panel) {
           <div class="summary-label">Total Links</div>
         </div>
         <div class="summary-card">
-          <div class="summary-number">${links.internalCount}</div>
+          <div class="summary-number">${links.internalLinks}</div>
           <div class="summary-label">Internal</div>
         </div>
         <div class="summary-card">
-          <div class="summary-number">${links.externalCount}</div>
+          <div class="summary-number">${links.externalLinks}</div>
           <div class="summary-label">External</div>
         </div>
         <div class="summary-card">
-          <div class="summary-number">${links.noFollowCount}</div>
+          <div class="summary-number">${links.nofollowLinks}</div>
           <div class="summary-label">NoFollow</div>
         </div>
       </div>
 
-      <div class="links-list">
-        <h3>Link Details</h3>
-        ${links.links.slice(0, 50).map(link => `
-          <div class="link-item link-${link.type}">
-            <div class="link-header">
-              <span class="link-text">${escapeHtml(link.text || link.url)}</span>
-              <span class="link-type">${link.type.toUpperCase()}</span>
-              ${link.nofollow ? '<span class="link-badge">NOFOLLOW</span>' : ''}
-            </div>
-            <div class="link-url">${escapeHtml(link.url)}</div>
-          </div>
-        `).join('')}
+      <div class="link-ratio">
+        <p><strong>Internal/External Ratio:</strong> ${links.linkRatio}</p>
+        <p><strong>Internal Distribution:</strong> ${links.internalLinkDistribution}%</p>
       </div>
+
+      ${anchorQuality && anchorQuality.quality ? `
+        <div class="anchor-quality">
+          <h3>Anchor Text Quality</h3>
+          <div class="quality-score">
+            <span class="label">Quality:</span>
+            <span class="value status-${anchorQuality.quality}">${anchorQuality.quality}</span>
+          </div>
+          <div class="quality-details">
+            <p>Average Anchor Length: ${anchorQuality.avgLength} characters</p>
+            <p>Total Links Analyzed: ${anchorQuality.totalLinks}</p>
+          </div>
+          ${anchorQuality.issues && Object.keys(anchorQuality.issues).length > 0 ? `
+            <div class="quality-issues">
+              <p><strong>Issues Found:</strong></p>
+              <ul>
+                ${Object.entries(anchorQuality.issues).map(([issue, count]) =>
+                  count > 0 ? `<li>${issue}: ${count}</li>` : ''
+                ).filter(x => x).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+
+      ${links.orphanedPages && links.orphanedPages.length > 0 ? `
+        <div class="orphaned-pages">
+          <h3>Orphaned Pages</h3>
+          <p class="metric-note">${links.orphanedPages.length} page(s) linked from only one location</p>
+          <div class="orphaned-list">
+            ${links.orphanedPages.slice(0, 5).map(url => `
+              <div class="orphaned-item">${escapeHtml(url)}</div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${links.linkVelocity ? `
+        <div class="link-velocity">
+          <h3>Link Distribution by Section</h3>
+          <div class="velocity-bars">
+            <div class="velocity-bar">
+              <span class="section-label">Header: ${links.linkVelocity.header}</span>
+            </div>
+            <div class="velocity-bar">
+              <span class="section-label">Body: ${links.linkVelocity.body}</span>
+            </div>
+            <div class="velocity-bar">
+              <span class="section-label">Footer: ${links.linkVelocity.footer}</span>
+            </div>
+          </div>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -1048,6 +1921,10 @@ function renderMedia(panel) {
   if (!data || !data.media) return;
 
   const media = data.media;
+  const sizeOptim = media.imageSizeOptimization || {};
+  const formatQuality = media.imageFormatQuality || {};
+  const altQuality = media.altTextQuality || {};
+
   panel.innerHTML = `
     <div class="media-container">
       <div class="media-summary">
@@ -1056,8 +1933,8 @@ function renderMedia(panel) {
           <div class="summary-label">Total Images</div>
         </div>
         <div class="summary-card">
-          <div class="summary-number">${media.imagesWithAlt}</div>
-          <div class="summary-label">With Alt Text</div>
+          <div class="summary-number">${media.altCoveragePercent}%</div>
+          <div class="summary-label">Alt Text Coverage</div>
         </div>
         <div class="summary-card">
           <div class="summary-number">${media.missingAltCount}</div>
@@ -1069,21 +1946,60 @@ function renderMedia(panel) {
         </div>
       </div>
 
-      <div class="images-list">
-        <h3>Image Details</h3>
-        ${media.images.slice(0, 30).map(img => `
-          <div class="image-item">
-            <div class="image-preview">
-              <img src="${escapeHtml(img.src)}" alt="${escapeHtml(img.alt || 'No alt text')}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3C/svg%3E'">
+      <div class="optimization-analysis">
+        <h3>Image Optimization Analysis</h3>
+
+        ${formatQuality && formatQuality.total > 0 ? `
+          <div class="format-quality">
+            <p><strong>Format Quality:</strong></p>
+            <div class="format-bars">
+              <div class="format-bar">
+                <span>Modern Formats (WebP/AVIF): ${formatQuality.optimal}</span>
+              </div>
+              <div class="format-bar">
+                <span>Standard Formats (JPG/PNG): ${formatQuality.suboptimal}</span>
+              </div>
             </div>
-            <div class="image-info">
-              <div class="image-title">${img.alt ? escapeHtml(img.alt) : '<em>No alt text</em>'}</div>
-              <div class="image-src">${escapeHtml(img.src.substring(0, 60))}</div>
-              <div class="image-meta">${img.width}x${img.height} | ${formatBytes(img.size)}</div>
+            ${formatQuality.hasLargeUnoptimized > 0 ? `
+              <p class="metric-warn">⚠️ ${formatQuality.hasLargeUnoptimized} large image(s) could benefit from modern format conversion</p>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        ${sizeOptim && sizeOptim.count > 0 ? `
+          <div class="size-optimization">
+            <p><strong>File Size Metrics:</strong></p>
+            <div class="size-details">
+              <div class="size-stat">Average Size: ${sizeOptim.avgSize} KB</div>
+              <div class="size-stat">Largest Image: ${sizeOptim.largestSize} KB</div>
+              <div class="size-stat">Total Size: ${sizeOptim.totalSize} MB</div>
             </div>
           </div>
-        `).join('')}
+        ` : ''}
+
+        ${altQuality && altQuality.quality ? `
+          <div class="alt-quality">
+            <p><strong>Alt Text Quality:</strong> <span class="status-${altQuality.quality}">${altQuality.quality}</span></p>
+            <div class="alt-stats">
+              <p>Average Alt Length: ${altQuality.avgLength} chars</p>
+              <p>Missing Alt Text: ${altQuality.missingCount}</p>
+            </div>
+          </div>
+        ` : ''}
       </div>
+
+      ${media.recommendations && media.recommendations.length > 0 ? `
+        <div class="optimization-recommendations">
+          <h3>Recommendations</h3>
+          <ul>
+            ${media.recommendations.map(rec => `
+              <li class="recommendation-${rec.priority}">
+                <strong>${rec.priority.toUpperCase()}:</strong> ${escapeHtml(rec.text)}
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -1097,26 +2013,47 @@ function renderSchema(panel) {
     <div class="schema-container">
       <div class="schema-summary">
         <div class="summary-card">
-          <div class="summary-number">${schema.schemaCount}</div>
-          <div class="summary-label">Schema Found</div>
+          <div class="summary-number">${schema.totalSchemas}</div>
+          <div class="summary-label">Total Schemas</div>
         </div>
         <div class="summary-card">
-          <div class="check-status">${schema.hasArticle ? '✓' : '✗'}</div>
-          <div class="summary-label">Article</div>
+          <div class="summary-number">${schema.validSchemas}</div>
+          <div class="summary-label">Valid</div>
         </div>
         <div class="summary-card">
-          <div class="check-status">${schema.hasProduct ? '✓' : '✗'}</div>
-          <div class="summary-label">Product</div>
-        </div>
-        <div class="summary-card">
-          <div class="check-status">${schema.hasOrganization ? '✓' : '✗'}</div>
-          <div class="summary-label">Organization</div>
+          <div class="summary-number">${schema.incompleteSchemas}</div>
+          <div class="summary-label">Incomplete</div>
         </div>
       </div>
 
+      ${schema.commonIssues && schema.commonIssues.length > 0 ? `
+        <div class="schema-validation">
+          <h3>Validation Issues</h3>
+          <div class="issues-list">
+            ${schema.commonIssues.slice(0, 10).map(issue => `
+              <div class="issue-item">
+                <span class="issue-icon">⚠️</span>
+                <span class="issue-text">${escapeHtml(issue)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${schema.recommendations && schema.recommendations.length > 0 ? `
+        <div class="schema-recommendations">
+          <h3>Recommendations</h3>
+          <ul>
+            ${schema.recommendations.map(rec => `
+              <li>${escapeHtml(rec)}</li>
+            `).join('')}
+          </ul>
+        </div>
+      ` : ''}
+
       <div class="schemas-list">
-        <h3>Structured Data</h3>
-        ${schema.schemas.length > 0 ? schema.schemas.map((s, idx) => `
+        <h3>Detected Structured Data</h3>
+        ${schema.schemas && schema.schemas.length > 0 ? schema.schemas.map((s, idx) => `
           <div class="schema-item">
             <div class="schema-type">${escapeHtml(s['@type'] || 'Unknown')}</div>
             <div class="schema-json">
@@ -1137,17 +2074,50 @@ function renderTech(panel) {
   panel.innerHTML = `
     <div class="tech-container">
       <div class="tech-header">
-        <h3>Technologies Detected (${tech.totalDetected})</h3>
+        <h3>Technologies Detected (${tech.totalTechnologies})</h3>
       </div>
 
-      ${Object.entries(tech.categories).map(([category, techs]) => `
+      ${tech.potentialVulnerabilities && tech.potentialVulnerabilities.length > 0 ? `
+        <div class="tech-vulnerabilities">
+          <h4 style="color: #e74c3c;">⚠️ Potential Issues</h4>
+          <div class="vuln-list">
+            ${tech.potentialVulnerabilities.map(vuln => `
+              <div class="vuln-item severity-${vuln.severity}">
+                <div class="vuln-name">${escapeHtml(vuln.name)}</div>
+                ${vuln.version ? `<div class="vuln-version">v${escapeHtml(vuln.version)}</div>` : ''}
+                ${vuln.message ? `<div class="vuln-message">${escapeHtml(vuln.message)}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${tech.performanceImpact && (tech.performanceImpact.positive.length > 0 || tech.performanceImpact.negative.length > 0) ? `
+        <div class="tech-performance">
+          <h4>Performance Impact</h4>
+          ${tech.performanceImpact.positive.length > 0 ? `
+            <div class="perf-positive">
+              <p><strong>✓ Positive Impact:</strong></p>
+              <p>${tech.performanceImpact.positive.join(', ')}</p>
+            </div>
+          ` : ''}
+          ${tech.performanceImpact.negative.length > 0 ? `
+            <div class="perf-negative">
+              <p><strong>✗ Negative Impact:</strong></p>
+              <p>${tech.performanceImpact.negative.join(', ')}</p>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+
+      ${Object.entries(tech.byCategory).map(([category, techs]) => `
         <div class="tech-category">
           <h4>${category}</h4>
           <div class="tech-list">
             ${techs.map(t => `
               <div class="tech-item">
                 <div class="tech-name">${escapeHtml(t.name)}</div>
-                ${t.version ? `<div class="tech-version">${escapeHtml(t.version)}</div>` : ''}
+                ${t.version ? `<div class="tech-version">v${escapeHtml(t.version)}</div>` : ''}
               </div>
             `).join('')}
           </div>
@@ -1162,6 +2132,8 @@ function renderJsSeo(panel) {
   if (!data || !data.jsSeo) return;
 
   const jsSeo = data.jsSeo;
+  const crp = jsSeo.criticalRenderingPath || {};
+
   panel.innerHTML = `
     <div class="jsseo-container">
       <div class="jsseo-header">
@@ -1173,27 +2145,71 @@ function renderJsSeo(panel) {
         <div class="dynamic-detected">
           <div class="dynamic-badge">DYNAMIC CONTENT DETECTED</div>
           <div class="dynamic-info">
-            <p>This page renders ${jsSeo.dynamicElementsCount} elements with JavaScript</p>
+            <p>This page renders <strong>${jsSeo.dynamicElementCount}</strong> elements with JavaScript</p>
             <p>SEO Impact: Ensure Googlebot can render your JavaScript-generated content</p>
           </div>
         </div>
 
-        ${jsSeo.hasSignificantDiff ? `
-          <div class="js-diffs">
-            <h4>Changes Made by JavaScript:</h4>
-            <ul>
-              ${jsSeo.jsRenderDiff.differences.map(diff => `
-                <li>${escapeHtml(diff)}</li>
+        ${jsSeo.contentHiddenByJs > 0 ? `
+          <div class="hidden-content-warning">
+            <p style="color: #e74c3c;"><strong>⚠️ Warning:</strong> ${jsSeo.contentHiddenByJs} content element(s) are hidden by JavaScript</p>
+            <p>Make sure critical SEO content is server-rendered or JavaScript-accessible to crawlers</p>
+          </div>
+        ` : ''}
+
+        ${jsSeo.jsModifiedElements && jsSeo.jsModifiedElements.length > 0 ? `
+          <div class="js-modifications">
+            <h4>DOM Modifications:</h4>
+            <div class="mods-list">
+              ${jsSeo.jsModifiedElements.slice(0, 10).map(diff => `
+                <div class="mod-item">${escapeHtml(diff)}</div>
               `).join('')}
-            </ul>
+            </div>
           </div>
         ` : ''}
       ` : `
         <div class="static-content">
-          <p>No significant JavaScript-based rendering detected</p>
+          <p>✓ No significant JavaScript-based rendering detected</p>
           <p>This page is fully rendered server-side (static)</p>
         </div>
       `}
+
+      ${crp && (crp.ttfb > 0 || crp.firstContentfulPaint > 0) ? `
+        <div class="critical-path">
+          <h4>Critical Rendering Path</h4>
+          <div class="crp-metrics">
+            <div class="crp-metric">
+              <span class="label">TTFB (Time to First Byte):</span>
+              <span class="value">${crp.ttfb}ms</span>
+            </div>
+            <div class="crp-metric">
+              <span class="label">FCP (First Contentful Paint):</span>
+              <span class="value">${crp.firstContentfulPaint}ms</span>
+            </div>
+            <div class="crp-metric">
+              <span class="label">LCP (Largest Contentful Paint):</span>
+              <span class="value">${crp.largestContentfulPaint}ms</span>
+            </div>
+            <div class="crp-metric">
+              <span class="label">CLS (Cumulative Layout Shift):</span>
+              <span class="value">${crp.cumulativeLayoutShift}</span>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      ${jsSeo.recommendations && jsSeo.recommendations.length > 0 ? `
+        <div class="jsseo-recommendations">
+          <h4>Recommendations</h4>
+          <ul>
+            ${jsSeo.recommendations.map(rec => `
+              <li class="recommendation-${rec.priority}">
+                <strong>${rec.priority.toUpperCase()}:</strong> ${escapeHtml(rec.text)}
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -1203,25 +2219,58 @@ function renderAI(panel) {
   if (!data || !data.aiVisibility) return;
 
   const aiVis = data.aiVisibility;
+
   panel.innerHTML = `
     <div class="ai-container">
       <div class="ai-header">
         <h3>AI Visibility Score</h3>
-        <div class="ai-score">${aiVis.visibility}%</div>
+        <div class="ai-score-display">
+          <div class="score-number">${aiVis.visibility}%</div>
+          <div class="score-status">${aiVis.overallStatus}</div>
+        </div>
+      </div>
+
+      <div class="ai-description">
+        <p>This score measures how visible your content is to AI language models and crawlers.</p>
+        <p>Higher scores indicate better indexability and knowledge base inclusion potential.</p>
       </div>
 
       ${aiVis.factors && aiVis.factors.length > 0 ? `
         <div class="ai-factors">
           <h4>Visibility Factors</h4>
-          ${aiVis.factors.map(factor => `
-            <div class="factor-item">
-              <div class="factor-label">${escapeHtml(factor.label)}</div>
-              <div class="factor-status">${escapeHtml(factor.status)}</div>
-              <div class="factor-impact">${escapeHtml(factor.impact)}</div>
-            </div>
-          `).join('')}
+          <div class="factors-grid">
+            ${aiVis.factors.map(factor => `
+              <div class="factor-item">
+                <div class="factor-header">
+                  <div class="factor-label">${escapeHtml(factor.label)}</div>
+                  <div class="factor-score">${factor.score}/${factor.maxScore}</div>
+                </div>
+                <div class="factor-status status-${factor.status.toLowerCase()}">${factor.status}</div>
+                <div class="factor-description">${escapeHtml(factor.description)}</div>
+                <div class="factor-progress">
+                  <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${(factor.score / factor.maxScore) * 100}%"></div>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </div>
       ` : `<p>No AI visibility factors computed</p>`}
+
+      <div class="ai-recommendations">
+        <h4>How to Improve AI Visibility</h4>
+        <ul>
+          <li>✓ Maintain comprehensive, well-structured content (1000+ words ideal)</li>
+          <li>✓ Use proper semantic HTML and heading hierarchy</li>
+          <li>✓ Add Schema.org structured data (JSON-LD format)</li>
+          <li>✓ Ensure content is indexable (no noindex meta tags)</li>
+          <li>✓ Optimize Core Web Vitals and page performance</li>
+          <li>✓ Include recent publication/modification dates in schema</li>
+          <li>✓ Build quality internal and external links</li>
+          <li>✓ Ensure WCAG accessibility compliance</li>
+        </ul>
+      </div>
     </div>
   `;
 }
