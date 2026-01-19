@@ -93,8 +93,11 @@ function transformAnalysisData(rawData) {
       viewport: rawData.viewport || '',
       robots: rawData.metaRobots || 'Allow',
       language: rawData.language || 'Not specified',
-      headings: parseHeadings(rawData.headings || []),
-      hasH1: (rawData.headings || []).some(h => h.level === 1)
+      headings: parseHeadingsFromCollector(rawData.headingText || {}),
+      hasH1: (rawData.headingText?.h1 || []).length > 0,
+      h1Count: (rawData.headingText?.h1 || []).length,
+      h2Count: (rawData.headingText?.h2 || []).length,
+      h3Count: (rawData.headingText?.h3 || []).length
     },
 
     // Content section
@@ -111,24 +114,39 @@ function transformAnalysisData(rawData) {
       textHtmlRatio: (rawData.textRatio * 100).toFixed(2)
     },
 
-    // Links section
+    // Links section - collector.js returns {total, internal, external, nofollow, ugc, sponsored, internalLinks}
     links: {
-      totalLinks: (rawData.links?.all || []).length,
-      internalCount: (rawData.links?.internal || []).length,
-      externalCount: (rawData.links?.external || []).length,
-      noFollowCount: (rawData.links?.nofollow || []).length,
-      sponsoredCount: (rawData.links?.sponsored || []).length,
-      ugcCount: (rawData.links?.ugc || []).length,
-      links: (rawData.links?.all || []).slice(0, 100) // Show max 100
+      totalLinks: rawData.links?.total || 0,
+      internalCount: rawData.links?.internal || 0,
+      externalCount: rawData.links?.external || 0,
+      noFollowCount: rawData.links?.nofollow || 0,
+      sponsoredCount: rawData.links?.sponsored || 0,
+      ugcCount: rawData.links?.ugc || 0,
+      links: (rawData.links?.internalLinks || []).map(link => ({
+        type: 'internal',
+        url: link.href || '',
+        text: link.text || '',
+        nofollow: false,
+        section: link.section || 'body',
+        visible: link.visible !== false
+      })).slice(0, 50) // Show max 50
     },
 
-    // Media section
+    // Media section - collector.js returns {total, missingAlt, shortAlt, missingSize, largeImages, genericFilename, samples}
     media: {
-      totalImages: (rawData.images || []).length,
-      missingAltCount: (rawData.images || []).filter(img => !img.alt).length,
-      imagesWithAlt: (rawData.images || []).filter(img => img.alt).length,
-      unoptimizedCount: (rawData.images || []).filter(img => !isOptimalImageFormat(img)).length,
-      images: (rawData.images || []).slice(0, 100)
+      totalImages: rawData.images?.total || 0,
+      missingAltCount: rawData.images?.missingAlt || 0,
+      imagesWithAlt: (rawData.images?.total || 0) - (rawData.images?.missingAlt || 0),
+      unoptimizedCount: (rawData.images?.largeImages || 0) + (rawData.images?.missingSize || 0),
+      images: (rawData.images?.samples || []).map(img => ({
+        src: img.src || '',
+        alt: img.alt || '',
+        width: img.width || 0,
+        height: img.height || 0,
+        size: img.size || 0,
+        format: img.format || 'unknown',
+        section: img.section || 'body'
+      })).slice(0, 50) // Show max 50
     },
 
     // Schema section
@@ -300,8 +318,8 @@ function identifyIssues(rawData) {
     });
   }
 
-  // H1 tag issues
-  const h1Count = (rawData.headings || []).filter(h => h.level === 1).length;
+  // H1 tag issues - collector.js returns headingText.h1 array
+  const h1Count = (rawData.headingText?.h1 || []).length;
   if (h1Count === 0) {
     issues.push({
       title: 'Missing H1 heading',
@@ -516,6 +534,36 @@ function parseHeadings(headings) {
     text: h.text || '',
     length: (h.text || '').length
   }));
+}
+
+function parseHeadingsFromCollector(headingText) {
+  // collector.js returns {h1: [], h2: [], h3: [], order: []}
+  const headings = [];
+
+  if (headingText.order && Array.isArray(headingText.order)) {
+    // Use the ordered headings if available
+    return headingText.order.map(h => ({
+      level: parseInt(h.tag.substring(1)) || 1,
+      text: h.text || '',
+      length: (h.text || '').length
+    }));
+  }
+
+  // Fallback: manually construct from h1, h2, h3 arrays
+  for (let i = 1; i <= 3; i++) {
+    const key = `h${i}`;
+    if (headingText[key] && Array.isArray(headingText[key])) {
+      headingText[key].forEach(text => {
+        headings.push({
+          level: i,
+          text: text,
+          length: (text || '').length
+        });
+      });
+    }
+  }
+
+  return headings;
 }
 
 function categorizeTech(techList) {
