@@ -1228,15 +1228,85 @@ function renderAI(panel) {
 
 function renderSerp(panel) {
   const data = appState.transformedData;
+
+  // Get SERP info if available
+  const onPageFeatures = getSerpFeatures(data);
+
   panel.innerHTML = `
     <div class="serp-container">
       <div class="serp-header">
-        <h3>SERP Gap Analysis</h3>
-        <p>Compare your page against top competitors</p>
+        <h3>SERP Features & Rich Snippets</h3>
+        <p>Your page's eligibility for rich search results</p>
       </div>
-      <div class="serp-placeholder">
-        <p>SERP analysis features coming soon</p>
-        <p>This feature requires Google Search API integration</p>
+
+      <div class="serp-features-grid">
+        <div class="feature-card feature-${data.schema.hasArticle ? 'enabled' : 'disabled'}">
+          <div class="feature-icon">📰</div>
+          <div class="feature-name">Article Rich Result</div>
+          <div class="feature-status">${data.schema.hasArticle ? '✓ Enabled' : '✗ Needs Schema'}</div>
+          ${data.schema.hasArticle ? '<div class="feature-help">Your page is eligible for article rich snippets</div>' : '<div class="feature-help">Add Article schema markup to enable</div>'}
+        </div>
+
+        <div class="feature-card feature-${data.schema.hasProduct ? 'enabled' : 'disabled'}">
+          <div class="feature-icon">🛒</div>
+          <div class="feature-name">Product Rich Result</div>
+          <div class="feature-status">${data.schema.hasProduct ? '✓ Enabled' : '✗ Needs Schema'}</div>
+          ${data.schema.hasProduct ? '<div class="feature-help">Your page is eligible for product rich snippets</div>' : '<div class="feature-help">Add Product schema markup to enable</div>'}
+        </div>
+
+        <div class="feature-card feature-${data.schema.hasBreadcrumb ? 'enabled' : 'disabled'}">
+          <div class="feature-icon">🍞</div>
+          <div class="feature-name">Breadcrumb</div>
+          <div class="feature-status">${data.schema.hasBreadcrumb ? '✓ Enabled' : '✗ Needs Schema'}</div>
+          ${data.schema.hasBreadcrumb ? '<div class="feature-help">Breadcrumb navigation is visible in search results</div>' : '<div class="feature-help">Add BreadcrumbList schema to show in SERP</div>'}
+        </div>
+
+        <div class="feature-card feature-${data.schema.hasOrganization ? 'enabled' : 'disabled'}">
+          <div class="feature-icon">🏢</div>
+          <div class="feature-name">Organization Info</div>
+          <div class="feature-status">${data.schema.hasOrganization ? '✓ Enabled' : '✗ Needs Schema'}</div>
+          ${data.schema.hasOrganization ? '<div class="feature-help">Organization details will display in search</div>' : '<div class="feature-help">Add Organization schema to show business info</div>'}
+        </div>
+
+        <div class="feature-card feature-${data.onpage.titleStatus === 'good' && data.onpage.metaStatus === 'good' ? 'enabled' : 'disabled'}">
+          <div class="feature-icon">📋</div>
+          <div class="feature-name">Meta Tags Optimized</div>
+          <div class="feature-status">${data.onpage.titleStatus === 'good' && data.onpage.metaStatus === 'good' ? '✓ Optimized' : '✗ Needs Work'}</div>
+          ${data.onpage.titleStatus === 'good' && data.onpage.metaStatus === 'good' ? '<div class="feature-help">Title and description are properly optimized</div>' : '<div class="feature-help">Improve title and meta description length</div>'}
+        </div>
+
+        <div class="feature-card feature-${data.performance.webVitalsScore > 70 ? 'enabled' : 'disabled'}">
+          <div class="feature-icon">⚡</div>
+          <div class="feature-name">Core Web Vitals</div>
+          <div class="feature-status">${data.performance.webVitalsScore > 70 ? '✓ Passing' : '✗ Needs Work'}</div>
+          ${data.performance.webVitalsScore > 70 ? '<div class="feature-help">Your page meets Core Web Vitals thresholds</div>' : '<div class="feature-help">Improve performance metrics for better rankings</div>'}
+        </div>
+
+        <div class="feature-card feature-${data.onpage.hasH1 ? 'enabled' : 'disabled'}">
+          <div class="feature-icon">🔤</div>
+          <div class="feature-name">H1 Heading</div>
+          <div class="feature-status">${data.onpage.hasH1 ? '✓ Present' : '✗ Missing'}</div>
+          ${data.onpage.hasH1 ? '<div class="feature-help">Single H1 improves content structure</div>' : '<div class="feature-help">Add a unique H1 heading to your page</div>'}
+        </div>
+
+        <div class="feature-card feature-${data.media.missingAltCount === 0 ? 'enabled' : 'disabled'}">
+          <div class="feature-icon">🖼️</div>
+          <div class="feature-name">Image Alt Text</div>
+          <div class="feature-status">${data.media.missingAltCount === 0 ? '✓ Complete' : '✗ ' + data.media.missingAltCount + ' Missing'}</div>
+          ${data.media.missingAltCount === 0 ? '<div class="feature-help">All images have descriptive alt text</div>' : '<div class="feature-help">Add alt text to ' + data.media.missingAltCount + ' images for SEO</div>'}
+        </div>
+      </div>
+
+      <div class="serp-recommendations">
+        <h4>To Improve SERP Appearance:</h4>
+        <ul>
+          <li>Add structured data (schema.org) markup</li>
+          <li>Optimize title (30-60 chars) and meta description (120-160 chars)</li>
+          <li>Ensure fast Core Web Vitals performance</li>
+          <li>Include proper heading hierarchy (H1, H2, H3)</li>
+          <li>Add alt text to all images</li>
+          <li>Implement breadcrumb navigation schema</li>
+        </ul>
       </div>
     </div>
   `;
@@ -1246,15 +1316,139 @@ function renderRegex(panel) {
   panel.innerHTML = `
     <div class="regex-container">
       <div class="regex-header">
-        <h3>Regex Pattern Builder</h3>
+        <h3>Regex Pattern Builder & Tester</h3>
         <p>Test regular expressions against page content</p>
       </div>
-      <div class="regex-placeholder">
-        <p>Regex builder features coming soon</p>
-        <p>Advanced pattern testing utility in development</p>
+
+      <div class="regex-input-area">
+        <div class="input-group">
+          <label>Regular Expression:</label>
+          <input type="text" id="regexPattern" placeholder="Enter regex pattern..." value="">
+          <div class="regex-help">E.g., /\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b/</div>
+        </div>
+
+        <div class="input-group">
+          <label>Flags:</label>
+          <div class="flag-checkboxes">
+            <label><input type="checkbox" id="flagG"> Global (g)</label>
+            <label><input type="checkbox" id="flagI"> Case-insensitive (i)</label>
+            <label><input type="checkbox" id="flagM"> Multiline (m)</label>
+          </div>
+        </div>
+
+        <button id="regexTest" class="regex-btn">Test Pattern</button>
+        <button id="regexReset" class="regex-btn secondary">Clear</button>
+      </div>
+
+      <div class="regex-results" id="regexResults" style="display: none;">
+        <h4>Matches Found:</h4>
+        <div class="results-list" id="matchesList"></div>
+      </div>
+
+      <div class="regex-templates">
+        <h4>Common Patterns:</h4>
+        <div class="template-buttons">
+          <button class="template-btn" onclick="loadRegexTemplate('email')">📧 Email</button>
+          <button class="template-btn" onclick="loadRegexTemplate('url')">🔗 URL</button>
+          <button class="template-btn" onclick="loadRegexTemplate('phone')">📱 Phone</button>
+          <button class="template-btn" onclick="loadRegexTemplate('date')">📅 Date</button>
+          <button class="template-btn" onclick="loadRegexTemplate('ipv4')">🌐 IPv4</button>
+          <button class="template-btn" onclick="loadRegexTemplate('slug')">📝 URL Slug</button>
+        </div>
+      </div>
+
+      <div class="regex-reference">
+        <h4>Quick Reference:</h4>
+        <ul>
+          <li><code>\\d</code> - Digit | <code>\\w</code> - Word char | <code>\\s</code> - Whitespace</li>
+          <li><code>.</code> - Any char | <code>*</code> - 0 or more | <code>+</code> - 1 or more | <code>?</code> - 0 or 1</li>
+          <li><code>[a-z]</code> - Character class | <code>^</code> - Start | <code>$</code> - End</li>
+          <li><code>()</code> - Group | <code>|</code> - Or | <code>\\b</code> - Word boundary</li>
+        </ul>
       </div>
     </div>
   `;
+
+  // Attach event listeners for regex tester
+  setTimeout(() => {
+    const testBtn = document.getElementById('regexTest');
+    const resetBtn = document.getElementById('regexReset');
+    if (testBtn) testBtn.addEventListener('click', testRegexPattern);
+    if (resetBtn) resetBtn.addEventListener('click', () => {
+      document.getElementById('regexPattern').value = '';
+      document.getElementById('flagG').checked = false;
+      document.getElementById('flagI').checked = false;
+      document.getElementById('flagM').checked = false;
+      document.getElementById('regexResults').style.display = 'none';
+    });
+  }, 100);
+}
+
+function getSerpFeatures(data) {
+  return {
+    article: data.schema.hasArticle,
+    product: data.schema.hasProduct,
+    breadcrumb: data.schema.hasBreadcrumb,
+    organization: data.schema.hasOrganization
+  };
+}
+
+function loadRegexTemplate(type) {
+  const templates = {
+    email: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}',
+    url: 'https?://[\\w.-]+(?:\\.[\\w\\.-]+)+[\\w\\-\\._~:/?#[\\]@!\\$&\'\\(\\)\\*\\+,;=.]+',
+    phone: '(?:\\+?1[-.]?)?\\(?([0-9]{3})\\)?[-.]?([0-9]{3})[-.]?([0-9]{4})',
+    date: '(?:0[1-9]|1[0-2])/(?:0[1-9]|[12][0-9]|3[01])/(?:19|20)\\d{2}',
+    ipv4: '(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)',
+    slug: '[a-z0-9]+(?:-[a-z0-9]+)*'
+  };
+
+  document.getElementById('regexPattern').value = templates[type] || '';
+}
+
+function testRegexPattern() {
+  const patternInput = document.getElementById('regexPattern').value;
+  const flagG = document.getElementById('flagG').checked;
+  const flagI = document.getElementById('flagI').checked;
+  const flagM = document.getElementById('flagM').checked;
+
+  if (!patternInput) {
+    alert('Please enter a regex pattern');
+    return;
+  }
+
+  try {
+    let flags = '';
+    if (flagG) flags += 'g';
+    if (flagI) flags += 'i';
+    if (flagM) flags += 'm';
+
+    const regex = new RegExp(patternInput, flags);
+    const bodyText = document.body.innerText || '';
+
+    const matches = flagG ? bodyText.match(regex) || [] : [bodyText.match(regex)].filter(m => m);
+
+    const resultsDiv = document.getElementById('regexResults');
+    const matchesList = document.getElementById('matchesList');
+
+    if (matches.length === 0) {
+      matchesList.innerHTML = '<div class="no-matches">No matches found</div>';
+    } else {
+      matchesList.innerHTML = `
+        <div class="matches-count">Found ${matches.length} match${matches.length !== 1 ? 'es' : ''}</div>
+        ${matches.slice(0, 20).map(match => `
+          <div class="match-item">
+            <code>${escapeHtml(match)}</code>
+          </div>
+        `).join('')}
+        ${matches.length > 20 ? `<div class="matches-truncated">... and ${matches.length - 20} more</div>` : ''}
+      `;
+    }
+
+    resultsDiv.style.display = 'block';
+  } catch (error) {
+    alert('Invalid regex pattern: ' + error.message);
+  }
 }
 
 /* ========================================
@@ -1273,6 +1467,45 @@ function formatBytes(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+function copyToClipboard(text, element) {
+  try {
+    navigator.clipboard.writeText(text).then(() => {
+      const originalText = element?.innerText || 'Copy';
+      element.innerText = '✓ Copied!';
+      setTimeout(() => {
+        element.innerText = originalText;
+      }, 2000);
+    });
+  } catch (err) {
+    console.error('Failed to copy:', err);
+  }
+}
+
+function highlightElement(selector) {
+  try {
+    const element = document.querySelector(selector);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('atlas-highlight');
+      setTimeout(() => {
+        element.classList.remove('atlas-highlight');
+      }, 3000);
+    }
+  } catch (err) {
+    console.error('Failed to highlight element:', err);
+  }
+}
+
+function sendMessageToContentScript(message) {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs.length > 0) {
+      chrome.tabs.sendMessage(tabs[0].id, message).catch(err => {
+        console.warn('Content script not available:', err);
+      });
+    }
+  });
 }
 
 /* ========================================
@@ -1298,6 +1531,27 @@ function setupEventListeners() {
 
   document.getElementById('refreshBtn')?.addEventListener('click', refreshAnalysis);
   document.getElementById('exportBtn')?.addEventListener('click', exportReport);
+
+  // Dark mode toggle (if we add a button for it later)
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+Shift+D to toggle dark mode
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+      toggleDarkMode();
+    }
+  });
+}
+
+function toggleDarkMode() {
+  appState.darkMode = !appState.darkMode;
+
+  if (appState.darkMode) {
+    document.body.classList.add('dark');
+  } else {
+    document.body.classList.remove('dark');
+  }
+
+  chrome.storage.local.set({ darkMode: appState.darkMode });
+  updateStatus(appState.darkMode ? 'Dark mode enabled' : 'Dark mode disabled', 'info');
 }
 
 async function initializeUI() {
