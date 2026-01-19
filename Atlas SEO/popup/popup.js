@@ -1643,4 +1643,164 @@ function generateCSV(data) {
   return rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
 }
 
+/* ========================================
+   10. DEBUG HELPERS & ANALYTICS
+   ======================================== */
+
+window.ATLAS_DEBUG = {
+  // View current app state
+  state: () => {
+    console.log('=== ATLAS SEO APP STATE ===');
+    console.log('Current Tab:', appState.currentTab);
+    console.log('Analysis Data:', appState.analysisData);
+    console.log('Transformed Data:', appState.transformedData);
+    console.log('Is Analyzing:', appState.isAnalyzing);
+    console.log('Dark Mode:', appState.darkMode);
+    return appState;
+  },
+
+  // Manually trigger analysis
+  analyze: async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return await analyzeCurrentPage(tab);
+  },
+
+  // Load sample data for testing
+  loadSampleData: () => {
+    const sampleData = {
+      url: 'https://example.com/blog/sample-article',
+      origin: 'https://example.com',
+      title: 'Complete Guide to SEO Best Practices - 2024',
+      metaDescription: 'Learn everything about SEO in this comprehensive guide. Tips, best practices, and strategies for improving your search rankings.',
+      metaRobots: 'index, follow',
+      canonical: 'https://example.com/blog/sample-article',
+      viewport: 'width=device-width, initial-scale=1',
+      language: 'en',
+      headingText: {
+        h1: ['Complete Guide to SEO Best Practices'],
+        h2: ['Understanding Core Web Vitals', 'Technical SEO Fundamentals', 'Content Optimization'],
+        h3: ['Page Speed Optimization', 'Mobile-First Design', 'Keyword Research'],
+        order: [
+          { tag: 'h1', text: 'Complete Guide to SEO Best Practices' },
+          { tag: 'h2', text: 'Understanding Core Web Vitals' },
+          { tag: 'h3', text: 'Page Speed Optimization' }
+        ]
+      },
+      wordCount: 2500,
+      textRatio: 0.15,
+      links: {
+        total: 45,
+        internal: 28,
+        external: 17,
+        nofollow: 3,
+        sponsored: 0,
+        ugc: 0,
+        internalLinks: [
+          { href: 'https://example.com/about', text: 'About Us', section: 'body', visible: true },
+          { href: 'https://example.com/contact', text: 'Contact', section: 'footer', visible: true }
+        ]
+      },
+      images: {
+        total: 12,
+        missingAlt: 2,
+        shortAlt: 1,
+        missingSize: 3,
+        largeImages: 2,
+        genericFilename: 1,
+        samples: [
+          { src: 'https://example.com/images/hero.jpg', alt: 'SEO strategy diagram', width: 1200, height: 600, size: 85000, format: 'jpeg', section: 'header' },
+          { src: 'https://example.com/images/chart.png', alt: 'Ranking factors chart', width: 800, height: 500, size: 125000, format: 'png', section: 'body' }
+        ]
+      },
+      structuredData: {
+        itemsCount: 2,
+        items: [
+          { '@type': 'Article', headline: 'Complete Guide to SEO', author: 'John Doe', datePublished: '2024-01-15' },
+          { '@type': 'Organization', name: 'Example Corp', url: 'https://example.com' }
+        ]
+      },
+      tech: [
+        { name: 'WordPress', version: '6.4', category: 'CMS' },
+        { name: 'React', version: '18.2.0', category: 'Frontend Framework' },
+        { name: 'Google Analytics', version: '4', category: 'Analytics' }
+      ],
+      performance: {
+        ttfb: 120,
+        fcp: 1200,
+        lcp: 1800,
+        cls: 0.05,
+        inp: 100,
+        load: 2500
+      },
+      dynamic: { count: 5, items: [] },
+      jsRender: { differences: ['Added sidebar', 'Loaded comments'] },
+      aiVisibility: { visibility: 85, factors: [{ label: 'Content Quality', status: 'Good', impact: 'Positive' }] },
+      contentQuality: {
+        readability: { score: 75, grade: 'B' }
+      }
+    };
+
+    appState.setData(sampleData);
+    updateStatus('Sample data loaded for testing', 'info');
+    renderTab(appState.currentTab);
+    console.log('Sample data loaded successfully');
+    return sampleData;
+  },
+
+  // Export raw analysis data as JSON
+  exportJSON: () => {
+    if (!appState.transformedData) {
+      console.warn('No analysis data available');
+      return null;
+    }
+    const json = JSON.stringify(appState.transformedData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `atlas-seo-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    console.log('Analysis data exported as JSON');
+  },
+
+  // Get extension version and info
+  info: () => {
+    const manifest = chrome.runtime.getManifest ? chrome.runtime.getManifest() : {};
+    return {
+      name: 'Atlas SEO',
+      version: manifest.version || '1.0.0',
+      description: 'All-in-one SEO audit and analysis extension',
+      buildTime: new Date().toISOString(),
+      userAgent: navigator.userAgent
+    };
+  },
+
+  // Clear all stored data
+  clearStorage: async () => {
+    await chrome.storage.local.clear();
+    appState.analysisData = null;
+    appState.transformedData = null;
+    updateStatus('All data cleared', 'warn');
+    console.log('Storage cleared');
+  },
+
+  // Performance metrics
+  metrics: () => {
+    if (!appState.transformedData) return { message: 'No analysis data yet' };
+    return {
+      overallScore: appState.transformedData.overallScore,
+      totalIssues: appState.transformedData.totalIssues,
+      loadTime: appState.transformedData.loadTime,
+      analysisTime: appState.getAnalysisTime(),
+      timestamp: appState.transformedData.analysisTime
+    };
+  }
+};
+
+// Expose debug helpers in console
+console.log('%cAtlas SEO Debug Tools', 'font-size: 14px; font-weight: bold; color: #7c5cfa;');
+console.log('Use: ATLAS_DEBUG.state(), ATLAS_DEBUG.analyze(), ATLAS_DEBUG.loadSampleData(), etc.');
+
 document.addEventListener('DOMContentLoaded', initializeUI);
