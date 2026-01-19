@@ -1601,7 +1601,15 @@ function renderTab(tabName) {
 
 function renderOverview(panel) {
   const data = appState.transformedData;
-  if (!data) return;
+  if (!data) {
+    panel.innerHTML = `
+      <div class="empty-state">
+        <p style="font-size: 16px; margin-bottom: 10px;">📊 Ready to Analyze</p>
+        <p>Click the <strong>Refresh</strong> button in the top right to analyze this page.</p>
+      </div>
+    `;
+    return;
+  }
 
   panel.innerHTML = `
     <div class="overview-container">
@@ -1758,9 +1766,12 @@ function renderOnPage(panel) {
 
 function renderContent(panel) {
   const data = appState.transformedData;
-  if (!data || !data.content) return;
+  if (!data || !data.content) {
+    panel.innerHTML = '<div class="empty-state"><p>No content data available. Run analysis first.</p></div>';
+    return;
+  }
 
-  const content = data.content;
+  const content = data.content || {};
   const keywordData = content.keywordDensity || {};
 
   panel.innerHTML = `
@@ -1829,9 +1840,12 @@ function renderContent(panel) {
 
 function renderLinks(panel) {
   const data = appState.transformedData;
-  if (!data || !data.links) return;
+  if (!data || !data.links) {
+    panel.innerHTML = '<div class="empty-state"><p>No link data available. Run analysis first.</p></div>';
+    return;
+  }
 
-  const links = data.links;
+  const links = data.links || {};
   const anchorQuality = links.anchorTextQuality || {};
 
   panel.innerHTML = `
