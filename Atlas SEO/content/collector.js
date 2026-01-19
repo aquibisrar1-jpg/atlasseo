@@ -1051,7 +1051,16 @@
     robotsCache.status = "unknown";
     robotsCache.error = "";
     try {
-      const res = await fetch(`${location.origin}/robots.txt`, { credentials: "omit" });
+      // Add timeout to fetch request (3 seconds max)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const res = await fetch(`${location.origin}/robots.txt`, {
+        credentials: "omit",
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = (await res.text()).slice(0, 200000);
       robotsCache.groups = parseRobotsTxt(text);
@@ -1588,7 +1597,8 @@
       aiVisibility,
       contentQuality: {
         readability
-      }
+      },
+      fullContent: bodyText
     };
   }
 
