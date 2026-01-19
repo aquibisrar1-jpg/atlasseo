@@ -56,15 +56,23 @@ async function initializeUI() {
     // Set up event listeners
     setupEventListeners();
 
-    // Render initial tab
+    // Render initial tab (shows empty state)
     switchTab('overview');
 
-    // Trigger analysis
-    await analyzeCurrentPage(tab);
+    // Show initial status
+    updateStatus('Ready. Click refresh to analyze.');
+
+    // Trigger analysis after a short delay to ensure UI is ready
+    setTimeout(() => {
+      analyzeCurrentPage(tab).catch(err => {
+        console.error('Initial analysis error:', err);
+        updateStatus('Click refresh button to analyze the page', 'warn');
+      });
+    }, 100);
 
   } catch (error) {
     console.error('Initialization failed:', error);
-    showStatus('Error initializing extension', 'error');
+    updateStatus('Extension loaded. Click refresh to analyze.', 'info');
   }
 }
 
@@ -145,36 +153,63 @@ function switchTab(tabName) {
 
 async function analyzeCurrentPage(tab) {
   try {
+    if (appState.isAnalyzing) {
+      updateStatus('Analysis already in progress...', 'info');
+      return;
+    }
+
     appState.isAnalyzing = true;
     appState.analysisStartTime = Date.now();
     updateStatus('Analyzing page...');
 
-    // Send message to content script
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      type: 'ANALYZE_PAGE',
-      sessionId: appState.sessionId
-    }, { frameId: 0 });
+    // Send message to content script with timeout
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        appState.isAnalyzing = false;
+        updateStatus('Analysis timed out. Try again.', 'warn');
+        reject(new Error('Message timeout'));
+      }, 5000);
 
-    if (response && response.success) {
-      appState.setAnalysisData(response.data);
-      updateStatus('Analysis complete');
+      try {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'ANALYZE_PAGE',
+          sessionId: appState.sessionId
+        }, { frameId: 0 }, (response) => {
+          clearTimeout(timeoutId);
 
-      // Update analysis time display
-      updateAnalysisTime();
+          if (chrome.runtime.lastError) {
+            console.warn('Message error:', chrome.runtime.lastError);
+            appState.isAnalyzing = false;
+            updateStatus('Content script not available. Click refresh to try again.', 'warn');
+            resolve();
+            return;
+          }
 
-      // Re-render current tab with new data
-      renderTab(appState.currentTab);
-    }
+          if (response && response.success && response.data) {
+            appState.setAnalysisData(response.data);
+            updateStatus('Analysis complete');
+            updateAnalysisTime();
+            renderTab(appState.currentTab);
+            appState.isAnalyzing = false;
+            resolve(response);
+          } else {
+            appState.isAnalyzing = false;
+            updateStatus('No analysis data received. Try refreshing the page.', 'warn');
+            resolve();
+          }
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('Failed to send message:', error);
+        appState.isAnalyzing = false;
+        updateStatus('Failed to connect. Try refreshing.', 'error');
+        reject(error);
+      }
+    });
   } catch (error) {
-    console.error('Analysis failed:', error);
-    if (error.message.includes('Could not establish connection')) {
-      updateStatus('Content script not ready. Retrying...', 'warn');
-      setTimeout(() => analyzeCurrentPage(tab), 1000);
-    } else {
-      updateStatus('Analysis failed', 'error');
-    }
-  } finally {
+    console.error('Analysis error:', error);
     appState.isAnalyzing = false;
+    updateStatus('Analysis failed. Try again.', 'error');
   }
 }
 
