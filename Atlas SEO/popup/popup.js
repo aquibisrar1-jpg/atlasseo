@@ -172,7 +172,7 @@ async function analyzeCurrentPage(tab) {
 
       try {
         chrome.tabs.sendMessage(tab.id, {
-          type: 'ANALYZE_PAGE',
+          type: 'analyze',
           sessionId: appState.sessionId
         }, { frameId: 0 }, (response) => {
           clearTimeout(timeoutId);
@@ -185,13 +185,17 @@ async function analyzeCurrentPage(tab) {
             return;
           }
 
-          if (response && response.success && response.data) {
+          if (response && (response.ok || response.success) && response.data) {
             appState.setAnalysisData(response.data);
             updateStatus('Analysis complete');
             updateAnalysisTime();
             renderTab(appState.currentTab);
             appState.isAnalyzing = false;
             resolve(response);
+          } else if (response && (response.ok === false || !response.ok)) {
+            appState.isAnalyzing = false;
+            updateStatus(`Analysis error: ${response.error || 'Unknown error'}`, 'error');
+            resolve();
           } else {
             appState.isAnalyzing = false;
             updateStatus('No analysis data received. Try refreshing the page.', 'warn');
