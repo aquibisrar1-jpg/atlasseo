@@ -1794,18 +1794,42 @@
       case "analyze": {
         (async () => {
           try {
+            console.log('[Atlas] Analysis starting...');
             const robotsInfo = await getRobotsInfo();
+            console.log('[Atlas] Got robots info:', robotsInfo?.status);
+
             const attempt = (triesLeft) => {
-              const data = analyzePage(robotsInfo);
-              const hasSchema = data.structuredData && data.structuredData.itemsCount > 0;
-              if (!hasSchema && triesLeft > 0) {
-                setTimeout(() => attempt(triesLeft - 1), 500);
-                return;
+              try {
+                console.log('[Atlas] Calling analyzePage...');
+                const data = analyzePage(robotsInfo);
+                console.log('[Atlas] analyzePage completed, got data');
+
+                if (!data) {
+                  console.error('[Atlas] analyzePage returned null/undefined');
+                  sendResponse({ ok: false, error: 'analyzePage returned no data' });
+                  return;
+                }
+
+                const hasSchema = data.structuredData && data.structuredData.itemsCount > 0;
+                console.log('[Atlas] Schema check - has schema:', hasSchema);
+
+                if (!hasSchema && triesLeft > 0) {
+                  console.log('[Atlas] Retrying schema detection...');
+                  setTimeout(() => attempt(triesLeft - 1), 500);
+                  return;
+                }
+
+                console.log('[Atlas] Sending successful response');
+                sendResponse({ ok: true, data });
+              } catch (stepErr) {
+                console.error('[Atlas] Error in attempt:', stepErr);
+                sendResponse({ ok: false, error: `Analysis step failed: ${stepErr?.message || String(stepErr)}` });
               }
-              sendResponse({ ok: true, data });
             };
+
             attempt(1);
           } catch (err) {
+            console.error('[Atlas] Analysis error:', err);
             sendResponse({ ok: false, error: err?.message || String(err) });
           }
         })();

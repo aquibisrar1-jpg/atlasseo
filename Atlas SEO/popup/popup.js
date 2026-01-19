@@ -1421,21 +1421,30 @@ async function analyzeCurrentPage(tab) {
     updateStatus('Analyzing page...');
 
     return new Promise((resolve, reject) => {
+      let callbackFired = false;
       const timeoutId = setTimeout(() => {
-        appState.isAnalyzing = false;
-        updateStatus('Analysis timed out. Try again.', 'warn');
-        reject(new Error('Message timeout'));
+        if (!callbackFired) {
+          callbackFired = true;
+          console.error('[Popup] Analysis callback never fired - timeout triggered');
+          appState.isAnalyzing = false;
+          updateStatus('Analysis timed out. Try again.', 'warn');
+          reject(new Error('Message timeout'));
+        }
       }, 15000); // Increased timeout to 15 seconds
 
       try {
+        console.log('[Popup] Sending analyze message to tab:', tab.id);
         chrome.tabs.sendMessage(tab.id, {
           type: 'analyze',
           sessionId: appState.sessionId
         }, { frameId: 0 }, (response) => {
+          callbackFired = true;
           clearTimeout(timeoutId);
 
+          console.log('[Popup] Callback fired with response:', response);
+
           if (chrome.runtime.lastError) {
-            console.warn('Message error:', chrome.runtime.lastError);
+            console.warn('[Popup] Message error:', chrome.runtime.lastError);
             appState.isAnalyzing = false;
             updateStatus('Content script not available. Click refresh to try again.', 'warn');
             resolve();
@@ -1443,6 +1452,7 @@ async function analyzeCurrentPage(tab) {
           }
 
           if (response && (response.ok || response.success) && response.data) {
+            console.log('[Popup] Analysis successful, processing data');
             appState.setData(response.data);
             updateStatus('Analysis complete');
             updateAnalysisTime();
@@ -1450,10 +1460,12 @@ async function analyzeCurrentPage(tab) {
             appState.isAnalyzing = false;
             resolve(response);
           } else if (response && (response.ok === false || !response.ok)) {
+            console.error('[Popup] Analysis error response:', response.error);
             appState.isAnalyzing = false;
             updateStatus(`Analysis error: ${response.error || 'Unknown error'}`, 'error');
             resolve();
           } else {
+            console.warn('[Popup] Unexpected response format:', response);
             appState.isAnalyzing = false;
             updateStatus('No analysis data received. Try refreshing the page.', 'warn');
             resolve();
@@ -1461,7 +1473,7 @@ async function analyzeCurrentPage(tab) {
         });
       } catch (error) {
         clearTimeout(timeoutId);
-        console.error('Failed to send message:', error);
+        console.error('[Popup] Failed to send message:', error);
         appState.isAnalyzing = false;
         updateStatus('Failed to connect. Try refreshing.', 'error');
         reject(error);
@@ -2620,6 +2632,10 @@ function toggleDarkMode() {
 async function initializeUI() {
   try {
     await appState.init();
+
+    // Reset any stuck state from previous analysis
+    appState.isAnalyzing = false;
+    console.log('[Popup] Initialization: Cleared stuck isAnalyzing state');
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     updateBreadcrumb(tab.url);
