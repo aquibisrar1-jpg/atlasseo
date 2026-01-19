@@ -1425,7 +1425,7 @@ async function analyzeCurrentPage(tab) {
         appState.isAnalyzing = false;
         updateStatus('Analysis timed out. Try again.', 'warn');
         reject(new Error('Message timeout'));
-      }, 5000);
+      }, 15000); // Increased timeout to 15 seconds
 
       try {
         chrome.tabs.sendMessage(tab.id, {
