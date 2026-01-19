@@ -1597,7 +1597,8 @@
       aiVisibility,
       contentQuality: {
         readability
-      }
+      },
+      fullContent: bodyText
     };
   }
 
